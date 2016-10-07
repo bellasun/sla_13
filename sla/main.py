@@ -386,14 +386,11 @@ def process(opt, root_dir):
         key_word_custom = raw_input("please input the custom key word: ");
         grep_key_word_custom(key_word_custom, realtime_dir);
 
-    elif 9 == opt:
-        exit(0);
-
     else:
-        printd("unknown process code: %d\n"%opt);
+        printd("to be deployed feature..%d\n"%opt);
 
 if __name__ == "__main__" :
-    root_dir = "./site-xxxx-20160330/omcp1";
+    root_dir = "/media/sf_trace_repo/site-xxxx-20160330/omcp1";
     opt_str = "";
     i = 1; # omit the sys.argv[0];
     while i < len(sys.argv):
@@ -405,23 +402,37 @@ if __name__ == "__main__" :
             opt_str = sys.argv[i + 1];
             i = i + 1;
         i = i + 1;
-
+        
+    print ""
+    print "*"*50
     printd("Hello world! Welcome to BSC SLA system! %s\n"%time.asctime());
     printd("process site: %s\n"%root_dir);
 
-    printd("select the corresponding number to start the process ...\n");
-    printd("[1] - read the log information\n");
-    printd("[2] - uncompress log files and decode the real time files\n");
-    printd("[3] - stat lines information\n");
-    printd("[4] - auto grep the key words\n");
-    printd("[5] - grep custom key word\n");
-    printd("[9] - quit\n");
-    while "" == opt_str:
-        opt_str = raw_input("your select(example: 1,3,4): ");
-    opt_list = opt_str.split(",");
+    print ""
+    while True:
+        printd("select the corresponding number to start the process ...\n");
+        printd("[1] - read the log information\n");
+        printd("[2] - uncompress log files and decode the real time files\n");
+        printd("[3] - stat lines information\n");
+        printd("[4] - auto grep the key words\n");
+        printd("[5] - grep custom key word\n");
+        printd("[0] - quit\n");
 
-    for opt in opt_list:
+        opt = ""   
+        while not opt.isdigit():
+            opt = raw_input("your select ==> ");
+            if opt.isdigit():
+                print "" 
+                if opt == "0":
+                    printd("Complete! Bye!  %s\n"%time.asctime());
+                    print "*"*50
+                    print ""
+                    exit(0)
+            else:
+                print "not a digit.."
+                continue
+
         process(int(opt), root_dir);
-
-    printd("Complete! Bye!  %s\n"%time.asctime());
-
+        print "*"*50
+        print ""
+        raw_input("tap enter to continue...")
