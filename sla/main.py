@@ -342,7 +342,18 @@ def list_detail_result(dir, result):
 ################################################################################
 
 def process(opt, root_dir):
+
+
+        
+
+    if opt.isdigit():
+        opt = int(opt)
+    else:
+        print "Please kindly input a number"
+        return    
+
     realtime_dir = "%s/realtime"%root_dir;
+
     if 1 == opt:
         info = read_log_info(root_dir);
         list_log_info(info);
@@ -395,7 +406,7 @@ def process(opt, root_dir):
         grep_key_word_custom(key_word_custom, realtime_dir);
 
     else:
-        printd("to be deployed feature..%d\n"%opt);
+        printd("feature to be deployed..%d\n"%opt);
         
 #############################################################################
 def list_dir(dir_path):
@@ -404,7 +415,7 @@ def list_dir(dir_path):
 
     '''
     contents = []
-    p = subprocess.Popen("ls %s"%dir_path, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT);  
+    p = subprocess.Popen("ls %s -Ft|grep /"%dir_path, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT);  
     p.wait()
     while True:
         file_name = p.stdout.readline()
@@ -412,7 +423,7 @@ def list_dir(dir_path):
             break
 
         file_name = file_name.strip("\n")
-        trace_file_path= "%s/%s/" %(dir_path,file_name)
+        trace_file_path= "%s/%s" %(dir_path,file_name)
         #deal with blanks in the path since find command would failed
         trace_file_path = trace_file_path.replace(" ", "\ ")
         log_info_name = "BSC-Genaral*"
@@ -422,15 +433,16 @@ def list_dir(dir_path):
         
         while True:
             file_info = []
+            info = {}
             res = p_find.stdout.readline()
             if res == "" and p_find.poll() != None:
                 break
             res = res.strip("\n")
-               
             info = read_log_info(res)
             #judge if it is a master omcp by has_key starttime and endtime?
             if info.has_key("starttime") and info.has_key("endtime"):
-                file_info.append(file_name)
+                file_info.append(file_name.strip("/"))
+                file_info.append(info["date"])
                 file_info.append(info["starttime"])
                 file_info.append(info["endtime"])
                 file_info.append(info["version"])
@@ -440,68 +452,139 @@ def list_dir(dir_path):
                 pass
 
     logging.info("logging,contents = %s"%(contents))
-
+    
     return contents
 ######################################################
 
-def chose_trace():
-    pass
+def display(key,contents):
+    '''
+    display in a nice way
+    '''
+    #assume len(key) = every len(contents[x])
+    
+    max_len = []
+    for i in range(len(key)):
+        max_len.append(0)
+    
+    for i in range(len(key)):
+        for j in range(len(contents)):
+            if len(contents[j][i]) > max_len[i]:
+                max_len[i] = len(contents[j][i])
+            else:
+                pass
+
+    print "-"*(sum(max_len)+len(key)+5)
+
+    for i in range(len(key)):
+        print "%s"%(key[i])," "*(max_len[i]-len(key[i])), "|",
+    print
+    print "-"*(sum(max_len)+len(key)+5)
+
+    for j in range(len(contents)):
+        for i in range(len(key)):
+            print "%s"%(contents[j][i])," "*(max_len[i]-len(contents[j][i])), "|",
+        print
+
+    print "-"*(sum(max_len)+len(key)+5)
+    print
+#####################################################
+
+def choose_file(all_files,choose):
+    
+
+    if choose not in all_files:
+        return False
+    else:
+        return choose
+
+       
+#####################################################
+
+
+
 
 if __name__ == "__main__" :
 
-    logging.basicConfig(level=logging.INFO, format="[%(asctime)s] %(name)s:%(levelname)s: %(message)s") 
-
-    root_parent = "/media/sf_trace_repo"
-    contents = list_dir(root_parent)
     
-    root_dir = "/media/sf_trace_repo/site-xxxx-20160330/omcp1";
-    opt_str = "";
-    i = 1; # omit the sys.argv[0];
-    while i < len(sys.argv):
-        arg = sys.argv[i];
-        if arg == "-d":
-            root_dir = sys.argv[i + 1];
-            i = i + 1;
-        elif arg == "-p":
-            opt_str = sys.argv[i + 1];
-            i = i + 1;
-        i = i + 1;
-        
-    print ""
-    print "*"*50
-    printd("Hello world! Welcome to BSC SLA system! %s\n"%time.asctime());
-    printd("process site: %s\n"%root_dir);
+    root_parent = "/media/sf_trace_repo"
 
-    print ""
+    print "\n"*2
+    title = "Hello, Welcome to Use BSC SLA!"
+    print title.center(100)
+    print "\n"*2
+    #logging.basicConfig(level=logging.INFO, format="[%(asctime)s] %(name)s:%(levelname)s: %(message)s") 
+
+    f_default = True
     while True:
-        printd("select the corresponding number to start the process ...\n");
-        printd("[1] - read the log information\n");
-        printd("[2] - uncompress log files and decode the real time files\n");
-        printd("[3] - stat lines information\n");
-        printd("[4] - auto grep the key words\n");
-        printd("[5] - grep custom key word\n");
-        printd("[q] - quit\n");
+        #Display the title and show all available trace diectories
+        contents = list_dir(root_parent)
+        print "Below are all the trace files:"
+        key = ["File","Date"]
+        display(key,contents)
+        
+        if f_default:
+            process_file = contents[0][0]
+        
+        name =(root_parent + "/" + process_file).replace(" ", "\ ")
+        p = subprocess.Popen("find %s -name realtime"%(name), shell=True,\
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT);  
+        p.wait()
 
+        res = p.stdout.readlines()
+        root_dir = []
+        for i in range(len(res)):
+            root_dir.append(res[i].strip("\n"))
+        
+        printd("To be process file: %s\n"%process_file)
+        for i in range(len(root_dir)):
+            printd("trace full path: %s\n"%root_dir[i])
+        print ""
+        
+        print("select the corresponding number to start the process ...")
+        print("[1] - read the log information")
+        print("[2] - uncompress log files and decode the real time files")
+        print("[3] - stat lines information")
+        print("[4] - auto grep the key words")
+        print("[5] - grep custom key word")
+        print("[s] - select trace file")
+        print("[q] - quit")
+
+        
         opt = ""   
-        while not opt.isdigit():
-            opt = raw_input("your select ==> ");
-            if opt.isdigit():
-                print "" 
-                if opt == "0":
-                    printd("Complete! Bye!  %s\n"%time.asctime());
-                    print "*"*50
-                    print ""
-                    exit(0)
-            else:
-                if opt == "q" or opt == "quit" or opt == "Q":
-                    printd("Complete! Bye!  %s\n"%time.asctime());
-                    print "*"*50
-                    print ""
-                    exit(0)
-                print "not a digit.."
-                continue
+        opt = raw_input("your select ==> ")
 
-        process(int(opt), root_dir);
+        if opt == "0" or opt == "q" or opt == "quit" or opt == "Q" or opt == "exit"\
+        or opt == "Exit":
+            printd("Complete! Bye!  %s\n"%time.asctime())
+            print "*"*50
+            print ""
+            exit(0)
+            print "not a digit.."
+        elif opt =="s" or opt =="S" or opt == "select" or opt == "sel":
+            choose = raw_input("Input the file name you wish to be processed==>")
+            all_file = []
+            for i in range(len(contents)):
+                all_file.append(contents[i][0])
+
+            process_file = choose_file(all_file,choose)
+            
+            while not process_file:
+                print "File name wrong, input again.."
+                choose = raw_input("trace file name==>")
+                if choose == "q":
+                    break
+                process_file = choose_file(all_file,choose)
+                
+            if choose == "q":
+                continue
+            f_default = False
+            continue
+
+        process(opt, root_dir);
+
         print "*"*50
         print ""
         raw_input("tap enter to continue...")
+
+###############end main################
+
