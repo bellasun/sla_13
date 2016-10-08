@@ -5,6 +5,7 @@ import sys
 import glob
 import re
 import time, datetime
+import logging
 from common import *
 
 #felix
@@ -97,10 +98,11 @@ def remove_time_stamp(line):
     return key_line;
 
 ###############################################################################
-def read_log_info(root):
+def read_log_info(file_path):
     info = {};
     # read BSC version
-    h = open("%s/BSC-Genaral.txt"%root, "r");
+    # "BSC-Genaral.txt"
+    h = open("%s"%file_path, "r");
     while True:
         line = h.readline();
         if not line:
@@ -121,8 +123,10 @@ def read_log_info(root):
     YEAR=2016 MONTH=05 DAY=18 HOUR=19 MINUTE=40
     Starttime is 201605181915, EndTime is 201605181940
     '''
-    h = open("%s/trace_collection.log"%root, "r");
-    key = "starttime";
+    pare_dir = file_path.strip("BSC-Genaral.txt")
+    h = open("%strace_collection.log"%pare_dir, "r");
+    #key = date,starttime,endtime"
+    key = "date"
     while True:
         line = h.readline();
         if not line:
@@ -130,7 +134,11 @@ def read_log_info(root):
         l = re.match(r"YEAR=(\d+) MONTH=(\d+) DAY=(\d+) HOUR=(\d+) MINUTE=(\d+)", line);
         if l:
             r = [t(s) for t,s in zip((int, int, int, int, int), l.groups())];
-            info[key] = "%4d-%02d-%02d %02d:%02d:00"%(r[0], r[1], r[2], r[3], r[4]);
+            if key == "date":
+                info[key] = "%4d-%02d-%02d"%(r[0], r[1], r[2]);
+                key = "starttime"
+            if key == "starttime" or key == "endtime":
+                info[key] = "%02d:%02d:00"%(r[3], r[4]);
             '''
             time_tuple = time.strptime(line.strip("\n").strip("\r"), 
                     "YEAR=%Y MONTH=%m DAY=%d HOUR=%H MINUTE=%M");
@@ -388,8 +396,64 @@ def process(opt, root_dir):
 
     else:
         printd("to be deployed feature..%d\n"%opt);
+        
+#############################################################################
+def list_dir(dir_path):
+    '''
+    #List all the files in the root path with log info
+
+    '''
+    contents = []
+    p = subprocess.Popen("ls %s"%dir_path, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT);  
+    p.wait()
+    while True:
+        file_name = p.stdout.readline()
+        if file_name == "" and p.poll() != None:
+            break
+
+        file_name = file_name.strip("\n")
+        trace_file_path= "%s/%s/" %(dir_path,file_name)
+        #deal with blanks in the path since find command would failed
+        trace_file_path = trace_file_path.replace(" ", "\ ")
+        log_info_name = "BSC-Genaral*"
+        p_find = subprocess.Popen("find %s -name %s"%(trace_file_path,log_info_name),\
+        shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT);  
+        p_find.wait()
+        
+        while True:
+            file_info = []
+            res = p_find.stdout.readline()
+            if res == "" and p_find.poll() != None:
+                break
+            res = res.strip("\n")
+               
+            info = read_log_info(res)
+            #judge if it is a master omcp by has_key starttime and endtime?
+            if info.has_key("starttime") and info.has_key("endtime"):
+                file_info.append(file_name)
+                file_info.append(info["starttime"])
+                file_info.append(info["endtime"])
+                file_info.append(info["version"])
+                contents.append(file_info)
+            else:
+                #This is slave omcp file
+                pass
+
+    logging.info("logging,contents = %s"%(contents))
+
+    return contents
+######################################################
+
+def chose_trace():
+    pass
 
 if __name__ == "__main__" :
+
+    logging.basicConfig(level=logging.INFO, format="[%(asctime)s] %(name)s:%(levelname)s: %(message)s") 
+
+    root_parent = "/media/sf_trace_repo"
+    contents = list_dir(root_parent)
+    
     root_dir = "/media/sf_trace_repo/site-xxxx-20160330/omcp1";
     opt_str = "";
     i = 1; # omit the sys.argv[0];
@@ -416,7 +480,7 @@ if __name__ == "__main__" :
         printd("[3] - stat lines information\n");
         printd("[4] - auto grep the key words\n");
         printd("[5] - grep custom key word\n");
-        printd("[0] - quit\n");
+        printd("[q] - quit\n");
 
         opt = ""   
         while not opt.isdigit():
@@ -429,6 +493,11 @@ if __name__ == "__main__" :
                     print ""
                     exit(0)
             else:
+                if opt == "q" or opt == "quit" or opt == "Q":
+                    printd("Complete! Bye!  %s\n"%time.asctime());
+                    print "*"*50
+                    print ""
+                    exit(0)
                 print "not a digit.."
                 continue
 
