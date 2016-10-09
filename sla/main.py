@@ -101,16 +101,21 @@ def read_log_info(file_path):
     info = {};
     # read BSC version
     # "BSC-Genaral.txt"
-    h = open("%s"%file_path, "r");
-    while True:
-        line = h.readline();
-        if not line:
-            break;
-        if "BSC_VERSION" in line:
-            version_list = line.strip("\n").strip("\r").split(":");
-            info["version"] = version_list[1];
-            break;
-    h.close();
+    try:
+        h = open("%s"%file_path, "r");
+        while True:
+            line = h.readline();
+            if not line:
+                break;
+            if "BSC_VERSION" in line:
+                version_list = line.strip("\n").strip("\r").split(":");
+                info["version"] = version_list[1];
+                break;
+    except Exceptions as e:
+        print e
+        return info
+    h.close()
+
     # read log time period
     '''
     3.Input StartTime [YYYYMMDDHHMM], e.g. 200901012300
@@ -125,30 +130,36 @@ def read_log_info(file_path):
     #read trace_collection.log file content:
     log_list = []
     pare_dir = file_path.strip("BSC-Genaral.txt")
-    h = open("%strace_collection.log"%pare_dir, "r");
-    #key = date,starttime,endtime"
-    key = "date"
-    while True:
-        line = h.readline();
-        if not line:
-            break;
-        l = re.match(r"YEAR=(\d+) MONTH=(\d+) DAY=(\d+) HOUR=(\d+) MINUTE=(\d+)", line);
-        if l:
-            r = [t(s) for t,s in zip((int, int, int, int, int), l.groups())];
-            if key == "date":
-                info[key] = "%4d-%02d-%02d"%(r[0], r[1], r[2]);
-                key = "starttime"
-            if key == "starttime" or key == "endtime":
-                info[key] = "%02d:%02d:00"%(r[3], r[4]);
-            '''
-            time_tuple = time.strptime(line.strip("\n").strip("\r"), 
-                    "YEAR=%Y MONTH=%m DAY=%d HOUR=%H MINUTE=%M");
-            info[key] = time.strftime("%Y-%m-%d %H:%M:%S", time_tuple);
-            '''
-            if key == "endtime":
+
+    try:
+        h_log = open("%strace_collection.log"%pare_dir, "r");
+        #key = date,starttime,endtime"
+        key = "date"
+        while True:
+            line = h_log.readline();
+            if not line:
                 break;
-            key = "endtime";
-    h.close();
+            l = re.match(r"YEAR=(\d+) MONTH=(\d+) DAY=(\d+) HOUR=(\d+) MINUTE=(\d+)", line);
+            if l:
+                r = [t(s) for t,s in zip((int, int, int, int, int), l.groups())];
+                if key == "date":
+                    info[key] = "%4d-%02d-%02d"%(r[0], r[1], r[2]);
+                    key = "starttime"
+                if key == "starttime" or key == "endtime":
+                    info[key] = "%02d:%02d:00"%(r[3], r[4]);
+                '''
+                time_tuple = time.strptime(line.strip("\n").strip("\r"), 
+                        "YEAR=%Y MONTH=%m DAY=%d HOUR=%H MINUTE=%M");
+                info[key] = time.strftime("%Y-%m-%d %H:%M:%S", time_tuple);
+                '''
+                if key == "endtime":
+                    break;
+                key = "endtime";
+    except Exception as e:
+        print e
+        return info
+
+    h_log.close();
     return info;
 ########################################################
 
@@ -453,7 +464,8 @@ def list_dir(dir_path):
             res = res.strip("\n")
             info = read_log_info(res)
             #judge if it is a master omcp by has_key starttime and endtime?
-            if info.has_key("starttime") and info.has_key("endtime"):
+            if info.has_key("starttime") and info.has_key("endtime")\
+            and info.has_key("date") and info.has_key("version"):
                 file_info.append(file_name.strip("/"))
                 file_info.append(info["date"])
                 file_info.append(info["starttime"])
@@ -555,7 +567,10 @@ if __name__ == "__main__" :
         display(key,contents,0)
         
         if f_default:
-            process_file = contents[0][0]
+            if len(contents) > 0:
+                process_file = contents[0][0]
+            else:
+                process_file = " "
         
         name =(root_parent + "/" + process_file).replace(" ", "\ ")
         p = subprocess.Popen("find %s -name realtime"%(name), shell=True,\
@@ -594,7 +609,7 @@ if __name__ == "__main__" :
         if opt == "q" or opt == "quit" or opt == "Q" or opt == "exit"\
         or opt == "Exit":
             print ""
-            printd("Complete! Bye!  %s\n"%time.asctime())
+            print("Complete! Bye!  %s\n"%time.asctime())
             print "*"*50
             print ""
             exit(0)
