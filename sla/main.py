@@ -112,6 +112,7 @@ def read_log_info(file_path):
                 info["version"] = version_list[1];
                 break;
     except Exceptions as e:
+    #just return am empty info if error
         print e
         return info
     h.close()
