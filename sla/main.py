@@ -10,9 +10,8 @@ from common import *
 
 #felix
 ###############################################################################
-g_result = [];
-g_dict = {};
-
+contents = []
+f_change = True
 ###############################################################################
 # common functions
 
@@ -123,6 +122,8 @@ def read_log_info(file_path):
     YEAR=2016 MONTH=05 DAY=18 HOUR=19 MINUTE=40
     Starttime is 201605181915, EndTime is 201605181940
     '''
+    #read trace_collection.log file content:
+    log_list = []
     pare_dir = file_path.strip("BSC-Genaral.txt")
     h = open("%strace_collection.log"%pare_dir, "r");
     #key = date,starttime,endtime"
@@ -149,6 +150,7 @@ def read_log_info(file_path):
             key = "endtime";
     h.close();
     return info;
+########################################################
 
 def list_log_info(info):
     printd("==================================================================\n");
@@ -341,22 +343,32 @@ def list_detail_result(dir, result):
 
 ################################################################################
 
-def process(opt, root_dir):
+def process(file_name,opt, dir_list):
 
-
-        
+    global contents
 
     if opt.isdigit():
         opt = int(opt)
     else:
-        print "Please kindly input a number"
+        print "Please kindly input a correct command"
         return    
 
-    realtime_dir = "%s/realtime"%root_dir;
+    realtime_dir = dir_list
+    
+    if 0 == opt:
+        
+        contents = list_dir(root_parent)
 
-    if 1 == opt:
-        info = read_log_info(root_dir);
-        list_log_info(info);
+    elif 1 == opt:
+        res = []
+        for item in contents:
+            if file_name == item[0]:
+                res.append(item)
+        key = ["name","date","start time","end time","version"]
+        print
+        printd(" LOG INFOMATION:\n");
+        display(key, res,40) 
+       # list_log_info(info);
 
     elif 2 == opt:
         # uncompress trace files
@@ -414,6 +426,7 @@ def list_dir(dir_path):
     #List all the files in the root path with log info
 
     '''
+    
     contents = []
     p = subprocess.Popen("ls %s -Ft|grep /"%dir_path, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT);  
     p.wait()
@@ -456,41 +469,52 @@ def list_dir(dir_path):
     return contents
 ######################################################
 
-def display(key,contents):
+def display(key,contents, num):
     '''
     display in a nice way
     '''
     #assume len(key) = every len(contents[x])
-    
+    limit = 0
+    if num != 0:
+       limit = num 
     max_len = []
     for i in range(len(key)):
         max_len.append(0)
     
     for i in range(len(key)):
         for j in range(len(contents)):
-            if len(contents[j][i]) > max_len[i]:
-                max_len[i] = len(contents[j][i])
-            else:
-                pass
+                max_len[i] = max(max_len[i], len(key[i]), len(contents[j][i]))
+                if limit != 0 and max_len[i] > limit:
+                    max_len[i] = limit
 
-    print "-"*(sum(max_len)+len(key)+5)
+    #for 1st key row:
+    num_len = 0
+    for i in range(len(key)):
+        num_len = num_len + (len(key[i]) + max_len[i]-len(key[i]) +  3)
+
+    num_len = num_len + 1
+    print "-"* num_len
 
     for i in range(len(key)):
         print "%s"%(key[i])," "*(max_len[i]-len(key[i])), "|",
     print
-    print "-"*(sum(max_len)+len(key)+5)
 
+    print "-"* num_len
+    # for contents:
     for j in range(len(contents)):
         for i in range(len(key)):
-            print "%s"%(contents[j][i])," "*(max_len[i]-len(contents[j][i])), "|",
+            if limit != 0 and len(contents[j][i]) > limit:
+                print  "%s"%(contents[j][i][:limit]), "|",
+            else:
+                print "%s"%(contents[j][i])," "*(max_len[i]-len(contents[j][i])), "|",
         print
 
-    print "-"*(sum(max_len)+len(key)+5)
+    print "-"* num_len
     print
+
 #####################################################
 
 def choose_file(all_files,choose):
-    
 
     if choose not in all_files:
         return False
@@ -507,20 +531,28 @@ if __name__ == "__main__" :
 
     
     root_parent = "/media/sf_trace_repo"
-
+    contents = []
+    f_change = True
     print "\n"*2
     title = "Hello, Welcome to Use BSC SLA!"
-    print title.center(100)
+    print title.center(70)
     print "\n"*2
     #logging.basicConfig(level=logging.INFO, format="[%(asctime)s] %(name)s:%(levelname)s: %(message)s") 
 
     f_default = True
     while True:
         #Display the title and show all available trace diectories
-        contents = list_dir(root_parent)
+        if f_change:
+            contents = list_dir(root_parent)
+        
+        all_file = []
+        for i in range(len(contents)):
+            all_file.append(contents[i][0])
+
+        print ""
         print "Below are all the trace files:"
         key = ["File","Date"]
-        display(key,contents)
+        display(key,contents,0)
         
         if f_default:
             process_file = contents[0][0]
@@ -531,16 +563,17 @@ if __name__ == "__main__" :
         p.wait()
 
         res = p.stdout.readlines()
-        root_dir = []
+        dir_list = []
         for i in range(len(res)):
-            root_dir.append(res[i].strip("\n"))
+            dir_list.append(res[i].strip("\n"))
         
-        printd("To be process file: %s\n"%process_file)
-        for i in range(len(root_dir)):
-            printd("trace full path: %s\n"%root_dir[i])
+        printd("To be process file: %s \n"%process_file)
+        for i in range(len(dir_list)):
+            printd("trace full path: %s\n"%dir_list[i])
         print ""
         
         print("select the corresponding number to start the process ...")
+        print("[0] - refresh list contents")
         print("[1] - read the log information")
         print("[2] - uncompress log files and decode the real time files")
         print("[3] - stat lines information")
@@ -551,40 +584,50 @@ if __name__ == "__main__" :
 
         
         opt = ""   
-        opt = raw_input("your select ==> ")
+        com = []
+        opt = raw_input("your select ==> ").strip(" ")
+        if len(opt) == 0:
+            continue
+        com = opt.split(" ")
+        opt = com[0]
 
-        if opt == "0" or opt == "q" or opt == "quit" or opt == "Q" or opt == "exit"\
+        if opt == "q" or opt == "quit" or opt == "Q" or opt == "exit"\
         or opt == "Exit":
+            print ""
             printd("Complete! Bye!  %s\n"%time.asctime())
             print "*"*50
             print ""
             exit(0)
             print "not a digit.."
         elif opt =="s" or opt =="S" or opt == "select" or opt == "sel":
-            choose = raw_input("Input the file name you wish to be processed==>")
-            all_file = []
-            for i in range(len(contents)):
-                all_file.append(contents[i][0])
-
-            process_file = choose_file(all_file,choose)
-            
-            while not process_file:
-                print "File name wrong, input again.."
-                choose = raw_input("trace file name==>")
-                if choose == "q":
-                    break
+            #s filename case
+            if len(com)>1 and com[1] in all_file:
+                process_file = com[1]
+            else:
+                choose = raw_input("input the file name ==>")
                 process_file = choose_file(all_file,choose)
                 
-            if choose == "q":
-                continue
+                while not process_file:
+                    print "File name wrong, input again.."
+                    choose = raw_input("trace file name ==>")
+                    if choose == "q":
+                        break
+                    process_file = choose_file(all_file,choose)
+                    
+                if choose == "q":
+                    continue
+
             f_default = False
             continue
 
-        process(opt, root_dir);
-
-        print "*"*50
-        print ""
-        raw_input("tap enter to continue...")
+        #dir_list is a list contents like */*/realtime
+        if len(com)>1 and com[1] in all_file:
+            process_file = com[1]
+        process(process_file,opt, dir_list)
+    
+        if opt != "0":
+            print ""
+            raw_input("tap enter to continue...")
 
 ###############end main################
 
