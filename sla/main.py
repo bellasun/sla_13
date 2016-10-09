@@ -176,33 +176,73 @@ def list_log_info(info):
         printd(sformat%("Duration Time", diff_time(info["starttime"], info["endtime"])));
     printd("==================================================================\n");
 
-def uncompress_log(dir) :
-    printd("start uncompress %s ...\n"%dir);
-    # start uncompress ./LR14.3G_CMCC_NAL/sltrace/TCK trace/40_standby/secured/realtime ...
-    # unzip ls: cannot access ./LR14.3G_CMCC_NAL/sltrace/TCK: No such file or directory
-    # [TODO] tar: Cannot connect to ls: resolve failed
-    p = subprocess.Popen("ls %s/*.tgz"%dir, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT);  
-    while True:
-        buff = p.stdout.readline();
-        if buff == '' and p.poll() != None:  
-            break;
-        file = buff.strip("\n");
-        printd("unzip %s\n"%file);
-        #  -m don't extract file modified time
-        # tar: 20160510_021642_20160517_193338_1.3.9_DTC_[210]_210.rtrc: time stamp 2016-05-18 03:34:55 is 42539.416074181 s in the future 
-        ptar = subprocess.Popen("tar -mxvf %s -C %s > /dev/null"%(file, dir), shell=True);
-        ptar.wait();
+#####################end list_log_info############################
 
-def decode_log(dir) :
-    printd("start decode %s ...\n"%dir);
-    p = subprocess.Popen("./tools/BSCTraceDecode -l %s"%(dir), shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT);
-    while True:
-        buff = p.stdout.readline();
-        if buff == '' and p.poll() != None:
-            break;
-        elif buff == '':
-            continue;
-        printd(buff);
+def uncompress_log(realtime_dir_list):
+
+    for dir in realtime_dir_list: 
+
+        #decide if untar necessary:
+        ne =  subprocess.Popen("find %s -name *.rtrc.out"%dir, shell=True, stdout=subprocess.PIPE,\
+                stderr=subprocess.STDOUT)
+        ne.wait()
+        buff = ne.stdout.readline()
+        if buff != "":
+            continue
+
+        p = subprocess.Popen("ls %s/*.tgz"%dir, shell=True, stdout=subprocess.PIPE,\
+        stderr=subprocess.STDOUT)
+        p.wait()
+        while True:
+            buff = p.stdout.readline();
+            if buff == '' and p.poll() != None:  
+                break;
+            file = buff.strip("\n");
+            printd("unzip %s\n"%file);
+            #  -m don't extract file modified time
+            ptar = subprocess.Popen("tar -mxvf %s -C %s > /dev/null"%(file, dir), shell=True);
+            ptar.wait();
+
+        print
+    
+###############end uncompress_log###############################
+
+
+def decode_log(realtime_dir_list) :
+
+    for dir in realtime_dir_list:
+
+        #decide if untar necessary:
+        ne =  subprocess.Popen("find %s -name *.rtrc.out"%dir, shell=True, stdout=subprocess.PIPE,\
+                stderr=subprocess.STDOUT)
+        ne.wait()
+        buff = ne.stdout.readline()
+        if buff != "":
+            print "decoded trace already exist."
+            continue
+
+        p = subprocess.Popen("./tools/BSCTraceDecode -l %s"%(dir), shell=True,\
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT);
+
+        while True:
+            buff = p.stdout.readline();
+            if buff == '' and p.poll() != None:
+                break;
+            elif buff == '':
+                continue;
+            printd(buff);
+
+##############end decode_log##################################
+
+
+def flush_rtrc(realtime_dir_list):
+
+    for dir in realtime_dir_list:
+        p = subprocess.Popen("rm %s/*.rtrc %s/*.rtrc_backup"%(dir,dir), shell=True,\
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT);
+        p.wait()
+
+##############end flush_rtrc#################################
 
 def stat_line(dir) :
     printd("start stat line info %s ...\n"%dir);
@@ -365,10 +405,9 @@ def process(file_name,opt, dir_list):
         print "Please kindly input a correct command"
         return    
 
-    realtime_dir = dir_list
+    l_realtime_dir = dir_list
     
     if 0 == opt:
-        
         contents = list_dir(root_parent)
 
     elif 1 == opt:
@@ -383,16 +422,16 @@ def process(file_name,opt, dir_list):
        # list_log_info(info);
 
     elif 2 == opt:
-        # uncompress trace files
-        uncompress_log(realtime_dir);
 
-        # decode the real time trace file
-        decode_log(realtime_dir);
+        
+        uncompress_log(l_realtime_dir)
+        decode_log(l_realtime_dir)
+        flush_rtrc(l_realtime_dir)
 
     elif 3 == opt:
         # stat line info
-        sdict = stat_line(realtime_dir);
-        list_stat_result(realtime_dir, sdict);
+        sdict = stat_line(l_realtime_dir);
+        list_stat_result(l_realtime_dir, sdict);
 
     elif 4 == opt: 
         # grep key words
@@ -414,7 +453,7 @@ def process(file_name,opt, dir_list):
         key_words_custom  = read_key_word_list("./key_words.cfg");
         key_words_total = dict(key_words_default.items() + key_words_custom.items());
         for x in key_words_total.keys():
-            result = grep_key_word(x, realtime_dir);
+            result = grep_key_word(x, l_realtime_dir);
             result.append(key_words_total[x]); # add the remark field
             g_result.append(result);
 
@@ -422,12 +461,12 @@ def process(file_name,opt, dir_list):
         list_grep_result(g_result);
 
         # grep the key word detail
-        list_detail_result(realtime_dir, g_result);
+        list_detail_result(l_realtime_dir, g_result);
 
     elif 5 == opt:
         # grep custom key word
         key_word_custom = raw_input("please input the custom key word: ");
-        grep_key_word_custom(key_word_custom, realtime_dir);
+        grep_key_word_custom(key_word_custom, l_realtime_dir);
 
     else:
         printd("feature to be deployed..%d\n"%opt);
