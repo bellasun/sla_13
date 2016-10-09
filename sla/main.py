@@ -234,6 +234,7 @@ def flush_rtrc(realtime_dir_list):
 def stat_line(realtime_dir_list) :
     dir = realtime_dir_list[0]
     
+    print 
     printd("start stat line info %s ...\n"%dir);
     mdict = {};
     files = []
@@ -264,7 +265,6 @@ def stat_line(realtime_dir_list) :
                     else:
                         mdict[key_line] = 1;
                         
-    print "DEBUG mdict:",mdict
     # sort
     sdict = sorted(mdict.iteritems(), key=lambda d:d[1], reverse = True);
     return sdict;
@@ -352,21 +352,26 @@ def grep_key_word_detail(key_word, file) :
 
 def list_stat_result(realtime_dir_list, sdict):
     dir = realtime_dir_list[0]
-    printd("==================================================================\n");
     stat_result = open("%s/stat_result"%dir, "w");
     i = 0;
-    print "DEBUG sdict:",sdict
+    print ""
+    printd("junk trace listed:\n")
+    print("------------------------------------------------------------------");
+    print ("rank|repeated number: " + "trace content")
+    print("------------------------------------------------------------------");
     for item in sdict:
-        info = "%d:%s"%(item[1], item[0]);
+        info = "%d|%d: %s"%(i+1,item[1], item[0]);
         stat_result.write(info + "\n");
         if i < 10:
-            printd(info + "\n");
+            print (info)
         elif i == 10:
-            printd("... \n");
-            printd("full stat result in %s/stat_result\n"%(dir));
+            print("...")
+            print("------------------------------------------------------------------");
+            print("full stat result in %s/stat_result"%(dir));
+            break
         i = i + 1;
+
     stat_result.close();
-    printd("==================================================================\n");
 
 ##########################end list_stat_result##############################
 
