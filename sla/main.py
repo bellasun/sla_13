@@ -164,19 +164,6 @@ def read_log_info(file_path):
     return info;
 ########################################################
 
-def list_log_info(info):
-    printd("==================================================================\n");
-    printd(" LOG INFOMATION\n");
-    sformat = " %-20s: %-40s\n";
-    printd(sformat%("BSC Version", info["version"]));
-    if info.has_key("starttime"):
-        # for standby OMCP, the start time can not be extraced! 
-        printd(sformat%("Start Time", info["starttime"]));
-        printd(sformat%("End Time", info["endtime"]));
-        printd(sformat%("Duration Time", diff_time(info["starttime"], info["endtime"])));
-    printd("==================================================================\n");
-
-#####################end list_log_info############################
 
 def uncompress_log(realtime_dir_list):
 
@@ -244,10 +231,16 @@ def flush_rtrc(realtime_dir_list):
 
 ##############end flush_rtrc#################################
 
-def stat_line(dir) :
+def stat_line(realtime_dir_list) :
+    dir = realtime_dir_list[0]
+    
     printd("start stat line info %s ...\n"%dir);
     mdict = {};
-    files = glob.glob("%s/*.out"%dir);
+    files = []
+    for dir in realtime_dir_list:
+       file = glob.glob("%s/*.out"%dir)
+       files = files + file
+
     count = len(files);
     i = 1;
     for fn in files:
@@ -270,9 +263,12 @@ def stat_line(dir) :
                         mdict[key_line] += 1;
                     else:
                         mdict[key_line] = 1;
+                        
+    print "DEBUG mdict:",mdict
     # sort
     sdict = sorted(mdict.iteritems(), key=lambda d:d[1], reverse = True);
     return sdict;
+################end state_line#####################
 
 def read_key_word_list(file):
     key_words = {};
@@ -351,10 +347,15 @@ def grep_key_word_detail(key_word, file) :
             mdict[key_line] = 1;
     return mdict;
 
-def list_stat_result(dir, sdict):
+#########################end grep_key_word_detail########################
+
+
+def list_stat_result(realtime_dir_list, sdict):
+    dir = realtime_dir_list[0]
     printd("==================================================================\n");
     stat_result = open("%s/stat_result"%dir, "w");
     i = 0;
+    print "DEBUG sdict:",sdict
     for item in sdict:
         info = "%d:%s"%(item[1], item[0]);
         stat_result.write(info + "\n");
@@ -366,6 +367,8 @@ def list_stat_result(dir, sdict):
         i = i + 1;
     stat_result.close();
     printd("==================================================================\n");
+
+##########################end list_stat_result##############################
 
 def list_grep_result(result) :
     printd("start list result ...\n");
@@ -419,10 +422,8 @@ def process(file_name,opt, dir_list):
         print
         printd(" LOG INFOMATION:\n");
         display(key, res,40) 
-       # list_log_info(info);
 
     elif 2 == opt:
-
         
         uncompress_log(l_realtime_dir)
         decode_log(l_realtime_dir)
