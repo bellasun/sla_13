@@ -298,21 +298,29 @@ def read_key_word_list(file):
 
 def grep_key_word_custom(key_word, realtime_dir_list, type="all"):
     
-    limit = ""
+    to_name = "custom_search"
+    limit = "*" + type +"*.out"
     if type == "all":
-        limit = ""
-    else:
-        limit = "*" + type
-        
+        limit = "*.out"
+    elif type == "further":
+        limit = to_name
+    
+    hits_total = 0
+    hits = 0
     #write to a file
     try:
-        to_name = "custom_search"
-        h = open("%s%s"%(realtime_dir_list[0].strip("realtime"),to_name), "w");
+        if type == "further":
+            to_name = "custom_search_further"
+            h = open("%s%s"%(realtime_dir_list[0].strip("realtime"),to_name), "w");
+        else:
+            h = open("%s%s"%(realtime_dir_list[0].strip("realtime"),to_name), "w");
 
         for dir in realtime_dir_list:
-            printd("start grep custom key word '%s' in %s/%s*.out ...\n"\
+            if type == "further":
+                dir = dir[:-9]
+            printd("start grep custom key word '%s' in %s/%s ...\n"\
             %(key_word, dir, limit));
-            p = subprocess.Popen("grep -ci '%s' %s/%s*.out"%(key_word, dir, limit),\
+            p = subprocess.Popen("grep -ci '%s' %s/%s"%(key_word, dir, limit),\
             shell=True, stdout=subprocess.PIPE);
             flag = 0;
             while True:
@@ -322,8 +330,10 @@ def grep_key_word_custom(key_word, realtime_dir_list, type="all"):
                 if buff == '':
                     continue;
                 data = buff.strip("\n").split(":");
-                if (len(data) > 1 and int(data[1]) > 0):
-                    printd(buff);
+                #bug if 2 files has 0 hits
+                #grep format problem
+                #if only one file the output is only a number no matter hit or not
+                if len(data) > 1: #int(data[1]) > 0:
                     ph = subprocess.Popen("grep -ihn '%s' %s"%(key_word, data[0]),\
                     shell=True, stdout=subprocess.PIPE);
                     h.write("-------- %s hits in file:%s\n"%(data[1],data[0]))
@@ -335,13 +345,18 @@ def grep_key_word_custom(key_word, realtime_dir_list, type="all"):
                             continue;
                         h.write(line)
                         print(line.strip("\n"))
-                    print "%s hits for this file %s"%(data[1],data[0])
+                     
+                    hits = int(data[1])
+                    if hits > 0:
+                        print "%s hits for this file %s"%(data[1],data[0])
 
                 else:#for only one result case:
-                    printd(buff);
-                    ph = subprocess.Popen("grep -ihn '%s' %s/%s*.out"%(key_word, dir, limit),\
+                    ph = subprocess.Popen("grep -ihn '%s' %s/%s"%(key_word, dir, limit),\
                     shell=True, stdout=subprocess.PIPE);
-                    h.write("-------- %s hits in the only file\n"%(data[0]))
+                    if type == "further":
+                        h.write("---Twice Search Result----- %s hits in the only file\n"%(data[0]))
+                    else:
+                        h.write("-------- %s hits in the only file\n"%(data[0]))
                     while True:
                         line = ph.stdout.readline();
                         if line == '' and ph.poll() != None:
@@ -350,7 +365,16 @@ def grep_key_word_custom(key_word, realtime_dir_list, type="all"):
                             continue;
                         h.write(line)
                         print(line.strip("\n"))
-                    print "%s hits for this file"%data[0]
+                    hits = int(data[0])
+                    if hits > 0:
+                        print "%s hits for this file"%data[0]
+                    
+            hits_total += hits 
+            hits = 0
+
+            if type == "futher":
+                break
+
     except Exception as e:
         print e
         return
@@ -358,6 +382,7 @@ def grep_key_word_custom(key_word, realtime_dir_list, type="all"):
     h.close()
     print("custom search finished! result saved in %s%s"\
     %(realtime_dir_list[0].strip("realtime"),to_name))
+    return hits_total
 ############## end grep_key_word_custom ###########################
 
 
@@ -564,28 +589,38 @@ def process(file_name,opt, dir_list):
         # grep custom key word
         key_word_custom = raw_input("input key word to search ==> ")\
         .strip(" ")
-        cmd = key_word_custom.split(" ")
+        cmd = key_word_custom.split(",")
         if cmd[0] == "q" or cmd[0] == "Q" or len(cmd[0])<=2:
             return
         
         start_c = time.time()
         if len(cmd) == 1:
-            result = grep_key_word_custom(cmd[0], l_realtime_dir)
+            hits_total = grep_key_word_custom(cmd[0], l_realtime_dir)
 
         else:
-            result = grep_key_word_custom(cmd[0], l_realtime_dir, cmd[1])
+            hits_total = grep_key_word_custom(cmd[0], l_realtime_dir, cmd[1].strip(" "))
             
         
         end_c = time.time()
         interval_c = end_c - start_c
 
-        if len(cmd) == 1 and interval_c > 12:
+        if len(cmd) == 1 and and hits_total > 0 and interval_c > 12:
             print "a kindly tip: key word followed with VCE type to accelerate searching"
-            print "like: 'CCDC_FFM OCPR'"
+            print "like: 'CCDC_FFM,OCPR'"
+
+        #Further search:
+        if hits_total <= 500:
+            return
+        cmd = raw_input("Input for a further search===>")
+        if cmd == "q" or cmd == "Q" or len(cmd)<=2 or cmd == "NOK":
+            return
+        else:
+            grep_key_word_custom(cmd, l_realtime_dir, "further")
+        
     else:
         printd("feature to be deployed..%d\n"%opt);
         
-#############################################################################
+##################### end process ###########################################
 def list_dir(dir_path):
     '''
     #List all the files in the root path with log info
@@ -796,7 +831,10 @@ if __name__ == "__main__" :
     
         if opt != "0":
             print ""
-            raw_input("tap enter to continue...")
-
+            cmd = raw_input("tap enter to continue...")
+            if cmd == "q" or cmd == "Q" or cmd == "exit" or cmd == "Exit":
+                print "Goodbye!"
+                break
+   #while True
 ###############end main################
 
