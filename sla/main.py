@@ -296,27 +296,69 @@ def read_key_word_list(file):
 
 ############# end read_key_word_list ####################
 
-def grep_key_word_custom(key_word, dir):
-    printd("start grep custom key word '%s' in %s ...\n"%(key_word, dir));
-    p = subprocess.Popen("grep -c '%s' %s/*.out"%(key_word, dir), shell=True, stdout=subprocess.PIPE);
-    flag = 0;
-    while True:
-        buff = p.stdout.readline();
-        if buff == '' and p.poll() != None:
-            break;
-        if buff == '':
-            continue;
-        data = buff.strip("\n").split(":");
-        if (len(data) > 1 and int(data[1]) > 0):
-            printd(buff);
-            ph = subprocess.Popen("grep -hn '%s' %s"%(key_word, data[0]), shell=True, stdout=subprocess.PIPE);
+def grep_key_word_custom(key_word, realtime_dir_list, type="all"):
+    
+    limit = ""
+    if type == "all":
+        limit = ""
+    else:
+        limit = "*" + type
+        
+    #write to a file
+    try:
+        to_name = "custom_search"
+        h = open("%s%s"%(realtime_dir_list[0].strip("realtime"),to_name), "w");
+
+        for dir in realtime_dir_list:
+            printd("start grep custom key word '%s' in %s/%s*.out ...\n"\
+            %(key_word, dir, limit));
+            p = subprocess.Popen("grep -ci '%s' %s/%s*.out"%(key_word, dir, limit),\
+            shell=True, stdout=subprocess.PIPE);
+            flag = 0;
             while True:
-                line = ph.stdout.readline();
-                if line == '' and ph.poll() != None:
+                buff = p.stdout.readline();
+                if buff == '' and p.poll() != None:
                     break;
-                if line == '':
+                if buff == '':
                     continue;
-                printd(line, False);
+                data = buff.strip("\n").split(":");
+                if (len(data) > 1 and int(data[1]) > 0):
+                    printd(buff);
+                    ph = subprocess.Popen("grep -ihn '%s' %s"%(key_word, data[0]),\
+                    shell=True, stdout=subprocess.PIPE);
+                    h.write("-------- %s hits in file:%s\n"%(data[1],data[0]))
+                    while True:
+                        line = ph.stdout.readline();
+                        if line == '' and ph.poll() != None:
+                            break;
+                        if line == '':
+                            continue;
+                        h.write(line)
+                        print(line.strip("\n"))
+                    print "%s hits for this file %s"%(data[1],data[0])
+
+                else:#for only one result case:
+                    printd(buff);
+                    ph = subprocess.Popen("grep -ihn '%s' %s/%s*.out"%(key_word, dir, limit),\
+                    shell=True, stdout=subprocess.PIPE);
+                    h.write("-------- %s hits in the only file\n"%(data[0]))
+                    while True:
+                        line = ph.stdout.readline();
+                        if line == '' and ph.poll() != None:
+                            break;
+                        if line == '':
+                            continue;
+                        h.write(line)
+                        print(line.strip("\n"))
+                    print "%s hits for this file"%data[0]
+    except Exception as e:
+        print e
+        return
+
+    h.close()
+    print("custom search finished! result saved in %s%s"\
+    %(realtime_dir_list[0].strip("realtime"),to_name))
+############## end grep_key_word_custom ###########################
 
 
 def grep_key_word(key_word, realtime_dir_list):
@@ -421,7 +463,28 @@ def save_result(realtime_dir_list, result_list, to_name):
 
     h.close();
 
+
 #################### end save_results ##################################
+
+def save_custom_result(realtime_dir_list, result_list, to_name):
+
+    dir = realtime_dir_list[0].strip("realtime")
+    try:
+        h = open("%s%s"%(dir,to_name), "w");
+        h.write("key word: counts\n")
+        for result in result_list:
+            for i in range(len(result)):
+                h.write("%s "%result[i])
+            h.write("\n")
+
+        print("result saved in %s%s"%(dir,to_name))
+    except Exception as e:
+        print e
+        return
+
+    h.close();
+################### end save_custom_result ##########################
+
 
 def process(file_name,opt, dir_list):
 
@@ -499,9 +562,26 @@ def process(file_name,opt, dir_list):
 
     elif 5 == opt:
         # grep custom key word
-        key_word_custom = raw_input("please input the custom key word: ");
-        grep_key_word_custom(key_word_custom, l_realtime_dir);
+        key_word_custom = raw_input("input key word to search ==> ")\
+        .strip(" ")
+        cmd = key_word_custom.split(" ")
+        if cmd[0] == "q" or cmd[0] == "Q" or len(cmd[0])<=2:
+            return
+        
+        start_c = time.time()
+        if len(cmd) == 1:
+            result = grep_key_word_custom(cmd[0], l_realtime_dir)
 
+        else:
+            result = grep_key_word_custom(cmd[0], l_realtime_dir, cmd[1])
+            
+        
+        end_c = time.time()
+        interval_c = end_c - start_c
+
+        if len(cmd) == 1 and interval_c > 12:
+            print "a kindly tip: key word followed with VCE type to accelerate searching"
+            print "like: 'CCDC_FFM OCPR'"
     else:
         printd("feature to be deployed..%d\n"%opt);
         
