@@ -205,7 +205,7 @@ def decode_log(realtime_dir_list) :
         ne.wait()
         buff = ne.stdout.readline()
         if buff != "":
-            print "decoded trace already exist."
+    #        print "decoded trace already exist."
             continue
 
         p = subprocess.Popen("./tools/BSCTraceDecode -l %s"%(dir), shell=True,\
@@ -523,36 +523,37 @@ def process(file_name,opt, dir_list):
 
     l_realtime_dir = dir_list
     
-    if 0 == opt:
-        contents = list_dir(root_parent)
 
-    elif 1 == opt:
+    if 1 == opt:
         res = []
         for item in contents:
             if file_name == item[0]:
                 res.append(item)
         key = ["name","date","start time","end time","version"]
         print
-        printd(" LOG INFOMATION:\n");
+        printd("LOG INFOMATION:\n");
         display(key, res,40) 
 
+
     elif 2 == opt:
-        
+        # stat line info
         uncompress_log(l_realtime_dir)
         decode_log(l_realtime_dir)
         flush_rtrc(l_realtime_dir)
 
-    elif 3 == opt:
-        # stat line info
         sdict = stat_line(l_realtime_dir);
         list_stat_result(l_realtime_dir, sdict);
 
-    elif 4 == opt: 
+    elif 3 == opt: 
         # grep key words
         '''
         like
         392657733 17:35:13:711 voserr.c 616 ERIR:VOS non-recoverable error.
         '''
+        uncompress_log(l_realtime_dir)
+        decode_log(l_realtime_dir)
+        flush_rtrc(l_realtime_dir)
+
         g_result = []
         key_words_default = {
                 #"Error report called. PROC:" : "",
@@ -585,7 +586,11 @@ def process(file_name,opt, dir_list):
 
         save_result(l_realtime_dir, g_result, "auto_result.txt");
 
-    elif 5 == opt:
+    elif 4 == opt:
+        uncompress_log(l_realtime_dir)
+        decode_log(l_realtime_dir)
+        flush_rtrc(l_realtime_dir)
+
         # grep custom key word
         key_word_custom = raw_input("input key word to search ==> ")\
         .strip(" ")
@@ -604,7 +609,7 @@ def process(file_name,opt, dir_list):
         end_c = time.time()
         interval_c = end_c - start_c
 
-        if len(cmd) == 1 and and hits_total > 0 and interval_c > 12:
+        if len(cmd) == 1 and hits_total > 0 and interval_c > 12:
             print "a kindly tip: key word followed with VCE type to accelerate searching"
             print "like: 'CCDC_FFM,OCPR'"
 
@@ -734,9 +739,11 @@ if __name__ == "__main__" :
     root_parent = "/media/sf_trace_repo"
     contents = []
     f_change = True
-    print "\n"*2
-    title = "Hello, Welcome to Use BSC SLA!"
-    print title.center(70)
+    print "\n"*2 
+    title = "Hello, Welcome to BSC SLA v1.0!"
+    print '\033[1;31;40m',
+    print title.center(70),
+    print '\033[0m',
     print "\n"*2
     #logging.basicConfig(level=logging.INFO, format="[%(asctime)s] %(name)s:%(levelname)s: %(message)s") 
 
@@ -771,20 +778,21 @@ if __name__ == "__main__" :
         for i in range(len(res)):
             dir_list.append(res[i].strip("\n"))
         
-        printd("To be process file: %s \n"%process_file)
-        for i in range(len(dir_list)):
-            printd("trace full path: %s\n"%dir_list[i])
-        print ""
+        #printd("To be process file: %s \n"%process_file)
+        #for i in range(len(dir_list)):
+        #    printd("trace full path: %s\n"%dir_list[i])
+        #print ""
         
-        print("select the corresponding number to start the process ...")
-        print("[0] - refresh list contents")
-        print("[1] - read the log information")
-        print("[2] - uncompress log files and decode the real time files")
-        print("[3] - stat lines information")
-        print("[4] - auto grep the key words")
-        print("[5] - grep custom key word")
-        print("[s] - select trace file")
-        print("[q] - quit")
+        print("select command on file:"),
+        print '\033[1;31;40m',
+        print ("%s")%process_file,
+        print '\033[0m'
+        print("[1] - log information")
+        print("[2] - junk log detect")
+        print("[3] - auto bug detect")
+        print("[4] - keyword search")
+        print ""
+        print("[s]- select trace file   [r] - refresh list  [q] - quit")
 
         
         opt = ""   
@@ -823,6 +831,10 @@ if __name__ == "__main__" :
 
             f_default = False
             continue
+            
+        if "r" == opt or "R" == opt:
+            contents = list_dir(root_parent)
+            continue
 
         #dir_list is a list contents like */*/realtime
         if len(com)>1 and com[1] in all_file:
@@ -831,7 +843,7 @@ if __name__ == "__main__" :
     
         if opt != "0":
             print ""
-            cmd = raw_input("tap enter to continue...")
+            cmd = raw_input("tap enter...")
             if cmd == "q" or cmd == "Q" or cmd == "exit" or cmd == "Exit":
                 print "Goodbye!"
                 break
