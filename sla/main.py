@@ -111,7 +111,7 @@ def read_log_info(file_path):
                 version_list = line.strip("\n").strip("\r").split(":");
                 info["version"] = version_list[1];
                 break;
-    except Exceptions as e:
+    except Exception as e:
     #just return am empty info if error
         print e
         return info
@@ -272,22 +272,29 @@ def stat_line(realtime_dir_list) :
 
 def read_key_word_list(file):
     key_words = {};
-    key_words_file = open(file, "r");
-    while True:
-        line = key_words_file.readline();
-        if not line:
-            break;
-        word = line.strip("\n").strip(" ");
-        if word == "" or word.startswith("#"):
-            continue;
-        else:
-            pair = [word, ""];
-            separator = "%%"; # config file separator
-            if separator in word:
-                pair = word.split(separator);
-            key_words[pair[0].strip(" ")] = pair[1].strip(" ");
+    try:
+        key_words_file = open(file, "r");
+        while True:
+            line = key_words_file.readline();
+            if not line:
+                break;
+            word = line.strip("\n").strip(" ");
+            if word == "" or word.startswith("#"):
+                continue;
+            else:
+                pair = [word, ""];
+                separator = "%%"; # config file separator
+                if separator in word:
+                    pair = word.split(separator);
+                key_words[pair[0].strip(" ")] = pair[1].strip(" ");
+    except Exception as e:
+        print e
+        return key_words
+
     key_words_file.close();
     return key_words;
+
+############# end read_key_word_list ####################
 
 def grep_key_word_custom(key_word, dir):
     printd("start grep custom key word '%s' in %s ...\n"%(key_word, dir));
@@ -311,23 +318,35 @@ def grep_key_word_custom(key_word, dir):
                     continue;
                 printd(line, False);
 
-def grep_key_word(key_word, dir) :
-    printd("start grep key word '%s' in %s ...\n"%(key_word, dir));
-    count = 0;
-    p = subprocess.Popen("grep -c '%s' %s/*.out"%(key_word, dir), shell=True, stdout=subprocess.PIPE);
-    files = [];
-    while True:
-        buff = p.stdout.readline();
-        if buff == '' and p.poll() != None:
-            break;
-        data = buff.strip("\n").split(":");
-        if (len(data) > 1 and int(data[1]) > 0):
-            count += int(data[1]);
-            files.append(data[0]);
-            printd(buff);
-    printd("key_word: %s, count: %d\n"%(key_word, count));
-    result = [key_word, count, files];
-    return result;
+
+def grep_key_word(key_word, realtime_dir_list):
+
+    result = {}
+    result[key_word] = 0
+    for dir in realtime_dir_list:
+        printd("start search key word '%s' in %s ...\n"%(key_word, dir));
+        count = 0;
+        p = subprocess.Popen("grep -c '%s' %s/*.out"%(key_word, dir), shell=True,\
+        stdout=subprocess.PIPE);
+        p.wait()
+        while True:
+            buff = p.stdout.readline();
+            #if buff == '' and p.poll() != None:
+            if buff == '':
+                break;
+            print "DEBUG buff=======",buff
+            #grep -c output only a number if found
+            #otherwise none ""
+            count += int(buff)
+            printd("find key word '%s' %d times\n"%(key_word, count));
+        result[key_word] += count 
+        printd("finish search key word '%s'..\n"%(key_word))
+    
+    result[key_word] = str(result[key_word])
+
+    return result
+############# end grep_key_word #############################
+
 
 def grep_key_word_detail(key_word, file) :
     #printd("start grep key word detail: %s in %s ...\n"%(key_word, file));
@@ -356,17 +375,17 @@ def list_stat_result(realtime_dir_list, sdict):
     i = 0;
     print ""
     printd("junk trace listed:\n")
-    print("------------------------------------------------------------------");
-    print ("rank|repeated number: " + "trace content")
-    print("------------------------------------------------------------------");
+    print "-"*60
+    print ("Ra|Repeats|" + "content")
+    print "-"*60
     for item in sdict:
-        info = "%d|%d: %s"%(i+1,item[1], item[0]);
+        info = "%-2d|%-7d|%-60s"%(i+1,item[1], item[0][:60])
         stat_result.write(info + "\n");
         if i < 10:
             print (info)
         elif i == 10:
             print("...")
-            print("------------------------------------------------------------------");
+            print "-"*60
             print("full stat result in %s/stat_result"%(dir));
             break
         i = i + 1;
@@ -375,17 +394,9 @@ def list_stat_result(realtime_dir_list, sdict):
 
 ##########################end list_stat_result##############################
 
-def list_grep_result(result) :
-    printd("start list result ...\n");
-    #print(result);
-    printd("==================================================================\n");
-    printd(" %-40s | %-5s | %-20s\n"%("key word", "count", "remark"));
-    printd("------------------------------------------------------------------\n");
-    for x in result:
-        printd(" %-40s | %-5d | %-20s\n"%(x[0], x[1], x[3]));
-    printd("==================================================================\n");
 
-def list_detail_result(dir, result):
+def list_detail_result(realtime_dir_list, result_list):
+
     search_result = open("%s/search_result"%dir, "w");
     for x in result:
         # ---------------------------------------------------------------------
@@ -401,7 +412,7 @@ def list_detail_result(dir, result):
     printd("detail result in %s/search_result\n"%(dir));
     search_result.close();
 
-################################################################################
+#################### end save_search_results ##################################
 
 def process(file_name,opt, dir_list):
 
@@ -442,29 +453,36 @@ def process(file_name,opt, dir_list):
     elif 4 == opt: 
         # grep key words
         '''
-        0000004260 08:18:50:868 voserr.c 679 ERIR:System restart. 
-        392657731 17:35:13:711 vosmem.c 1756 ERIR:ReleaseMemory: invalid memory state=0.
-        392657732 17:35:13:711 voserr.c 556 ERIR:Error report called. PROC: G_S_KGHXAL_GPRS_TSM 
-        class: 1 type: 1077 seq: 3userData0: 1 userData1: 59 userData2: 80, userData3: 0
+        like
         392657733 17:35:13:711 voserr.c 616 ERIR:VOS non-recoverable error.
         '''
+        g_result = []
         key_words_default = {
                 #"Error report called. PROC:" : "",
-                "Wrong MSC_SBL_NUM" : "p3, call can't be setup, CR01806507", 
-                "OMCP Reboot" : "", 
-                "CCP takeover" : "", 
-                "System restart" : "", 
-                "VOS non-recoverable error" : ""
+                #"Wrong MSC_SBL_NUM" : "p3, call can't be setup, CR01806507", 
+                "OMCP Reboot" : "None Remark", 
+                #"CCP takeover" : "NONE", 
+                #"System restart" : "NONE", 
+                "VOS non-recoverable error" : "This triggers a core dump"
                 };
+        #[TODO] save keyword in Excel file
         key_words_custom  = read_key_word_list("./key_words.cfg");
-        key_words_total = dict(key_words_default.items() + key_words_custom.items());
-        for x in key_words_total.keys():
-            result = grep_key_word(x, l_realtime_dir);
-            result.append(key_words_total[x]); # add the remark field
+        #Transform between list and dict:
+        #dict.items ==> list, dict(list) ==> dict
+        key_words_total = dict(key_words_default.items()\
+        + key_words_custom.items());
+        for key_word in key_words_total.keys():
+            result = grep_key_word(key_word, l_realtime_dir);
+            #transform to a list like ["keyword","4"]
+            result = list(result.items()[0])
+            result.append(key_words_total[key_word]); # add the remark field
             g_result.append(result);
-
         # list the result
-        list_grep_result(g_result);
+        key = ["key word","find","Note"]
+        print
+        printd("Search Results:\n")
+        g_result = sorted(g_result, key=lambda result:result[1],reverse=True)
+        display(key, g_result,40) 
 
         # grep the key word detail
         list_detail_result(l_realtime_dir, g_result);
