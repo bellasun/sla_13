@@ -334,14 +334,18 @@ def grep_key_word(key_word, realtime_dir_list):
             #if buff == '' and p.poll() != None:
             if buff == '':
                 break;
-            print "DEBUG buff=======",buff
             #grep -c output only a number if found
             #otherwise none ""
-            count += int(buff)
-            printd("find key word '%s' %d times\n"%(key_word, count));
+            #bug for only one file then grep -c output only one number
+            #otherwise output like :xxx:2
+            data = buff.split(":")
+            if len(data)==1:#"only one .out file case"
+                count += int(buff)
+            else:
+                count += int(data[1])
         result[key_word] += count 
-        printd("finish search key word '%s'..\n"%(key_word))
     
+        printd("finish,find key word '%s' %d times\n"%(key_word, result[key_word]))
     result[key_word] = str(result[key_word])
 
     return result
@@ -349,6 +353,9 @@ def grep_key_word(key_word, realtime_dir_list):
 
 
 def grep_key_word_detail(key_word, file) :
+    '''
+    output grep keyword result with more context
+    '''
     #printd("start grep key word detail: %s in %s ...\n"%(key_word, file));
     p = subprocess.Popen("grep '%s' %s"%(key_word, file), shell=True, stdout=subprocess.PIPE);
     mdict = {};
@@ -370,23 +377,24 @@ def grep_key_word_detail(key_word, file) :
 
 
 def list_stat_result(realtime_dir_list, sdict):
-    dir = realtime_dir_list[0]
-    stat_result = open("%s/stat_result"%dir, "w");
+    dir = realtime_dir_list[0].strip("realtime")
+    stat_result = open("%srepeat_result.txt"%dir, "w");
     i = 0;
     print ""
-    printd("junk trace listed:\n")
+    print("************* repeated trace listed, spam? ***************")
     print "-"*60
     print ("Ra|Repeats|" + "content")
     print "-"*60
     for item in sdict:
         info = "%-2d|%-7d|%-60s"%(i+1,item[1], item[0][:60])
-        stat_result.write(info + "\n");
+        info_full = "%-2d|%-7d|%s"%(i+1,item[1], item[0])
+        stat_result.write(info_full + "\n");
         if i < 10:
             print (info)
         elif i == 10:
             print("...")
             print "-"*60
-            print("full stat result in %s/stat_result"%(dir));
+            print("full stat result in %srepeat_result.txt"%(dir))
             break
         i = i + 1;
 
@@ -395,24 +403,25 @@ def list_stat_result(realtime_dir_list, sdict):
 ##########################end list_stat_result##############################
 
 
-def list_detail_result(realtime_dir_list, result_list):
+def save_result(realtime_dir_list, result_list, to_name):
 
-    search_result = open("%s/search_result"%dir, "w");
-    for x in result:
-        # ---------------------------------------------------------------------
-        search_result.write("%s\n"%(80*"-"));
-        search_result.write("detail: %s:%d\n"%(x[0], x[1]));
-        for f in x[2]:
-            search_result.write("====in %s\n"%f);
-            mdict = grep_key_word_detail(x[0], f);
-            for k in mdict.keys():
-                search_result.write("%d:%s\n"%(mdict[k], k));
-        search_result.write("%s\n"%(80*"-"));
-        # ---------------------------------------------------------------------
-    printd("detail result in %s/search_result\n"%(dir));
-    search_result.close();
+    dir = realtime_dir_list[0].strip("realtime")
+    try:
+        h = open("%s%s"%(dir,to_name), "w");
+        h.write("key word: counts\n")
+        for result in result_list:
+            for i in range(len(result)):
+                h.write("%s "%result[i])
+            h.write("\n")
 
-#################### end save_search_results ##################################
+        print("result saved in %s%s"%(dir,to_name))
+    except Exception as e:
+        print e
+        return
+
+    h.close();
+
+#################### end save_results ##################################
 
 def process(file_name,opt, dir_list):
 
@@ -459,10 +468,10 @@ def process(file_name,opt, dir_list):
         g_result = []
         key_words_default = {
                 #"Error report called. PROC:" : "",
-                #"Wrong MSC_SBL_NUM" : "p3, call can't be setup, CR01806507", 
+                "Wrong MSC_SBL_NUM" : "p3, call can't be setup, CR01806507", 
                 "OMCP Reboot" : "None Remark", 
-                #"CCP takeover" : "NONE", 
-                #"System restart" : "NONE", 
+                "CCP takeover" : "NONE", 
+                "System restart" : "NONE", 
                 "VOS non-recoverable error" : "This triggers a core dump"
                 };
         #[TODO] save keyword in Excel file
@@ -480,12 +489,13 @@ def process(file_name,opt, dir_list):
         # list the result
         key = ["key word","find","Note"]
         print
-        printd("Search Results:\n")
+        print("************** Search Results *************")
         g_result = sorted(g_result, key=lambda result:result[1],reverse=True)
         display(key, g_result,40) 
 
         # grep the key word detail
-        list_detail_result(l_realtime_dir, g_result);
+
+        save_result(l_realtime_dir, g_result, "auto_result.txt");
 
     elif 5 == opt:
         # grep custom key word
@@ -503,6 +513,7 @@ def list_dir(dir_path):
     '''
     
     contents = []
+    #ls -F ==> dir1/ dir2/, -t sort by time
     p = subprocess.Popen("ls %s -Ft|grep /"%dir_path, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT);  
     p.wait()
     while True:
@@ -586,7 +597,6 @@ def display(key,contents, num):
         print
 
     print "-"* num_len
-    print
 
 #####################################################
 
