@@ -175,8 +175,6 @@ def uncompress_log(realtime_dir_list):
         #stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         #ne.wait()
         #buff = ne.stdout.readline()
-        #print "DEBUG dir",dir
-        #print "DEBUG buff",buff
         #if buff != "":
         #    continue
 
@@ -453,30 +451,6 @@ def grep_key_word(key_word, realtime_dir_list):
 ############# end grep_key_word #############################
 
 
-def grep_key_word_detail(key_word, file) :
-    '''
-    output grep keyword result with more context
-    '''
-    #printd("start grep key word detail: %s in %s ...\n"%(key_word, file));
-    p = subprocess.Popen("grep '%s' %s"%(key_word, file), shell=True, stdout=subprocess.PIPE);
-    mdict = {};
-    while True:
-        buff = p.stdout.readline();
-        if buff == '' and p.poll() != None:
-            break;
-        elif buff == '':
-            continue;
-        i = len("0009048553 03:00:20:079 ");
-        key_line = buff[i:-1];
-        if mdict.has_key(key_line):
-            mdict[key_line] += 1;
-        else:
-            mdict[key_line] = 1;
-    return mdict;
-
-#########################end grep_key_word_detail########################
-
-
 def list_stat_result(realtime_dir_list, sdict):
     dir = realtime_dir_list[0].strip("realtime")
     stat_result = open("%srepeat_result.txt"%dir, "w");
@@ -549,44 +523,108 @@ def process(file_name,opt, dir_list):
 
     global contents
 
-    if opt.isdigit():
-        opt = int(opt)
-    else:
+    if not opt[0].isdigit():
         print "please kindly input a correct command"
         return False   
 
     l_realtime_dir = dir_list
-    
 
-    if 1 == opt:
+    f_tgz = False
+    f_out = False
+    f_rtrc = False
+    for dir in l_realtime_dir:
+        ne =  subprocess.Popen("find %s -name *.tgz"%dir, shell=True,\
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        ne.wait()
+        buff = ne.stdout.readline()
+        if buff != "":
+            f_tgz = True
+            break 
+
+    for dir in l_realtime_dir:
+        ne =  subprocess.Popen("find %s -name *.out"%dir, shell=True,\
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        ne.wait()
+        buff = ne.stdout.readline()
+        if buff != "":
+            f_out = True
+            break 
+
+    for dir in l_realtime_dir:
+        ne =  subprocess.Popen("find %s -name *.rtrc"%dir, shell=True,\
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        ne.wait()
+        buff = ne.stdout.readline()
+        if buff != "":
+            f_rtrc = True
+            break 
+
+    if 1 == int(opt[0]):
         res = []
         for item in contents:
             if file_name == item[0]:
                 res.append(item)
-        key = ["name","date","start time","end time","version"]
+        
+        status = ""
+        if f_out and not f_tgz and not f_rtrc:
+            status = "fully decoded"
+        elif f_out and (f_rtrc or f_rtrc):
+            status = "partial decoded"
+        elif not f_out and not f_tgz and not f_rtrc:
+            status = "no trace"
+        elif not f_out and (f_tgz or f_rtrc):
+            status = "not decoded"
+        else:
+            print "status umbiguious:"
+
+        res[0].append(status)
+        key = ["name","date","start time","end time","version","status"]
         print
         print("LOG INFOMATION");
         display(key, res,40) 
+    elif 2 == int(opt[0]):
 
 
-    elif 2 == opt:
-        # stat line info
+        if not f_tgz:
+            print "No '*.tgz' files detected, over"
+            return
+
         uncompress_log(l_realtime_dir)
         decode_log(l_realtime_dir)
+        if len(opt) > 1 and (opt[1] == "k" or opt[1] == "K"):
+            return
         flush_rtrc(l_realtime_dir)
 
+        print "tip: input command '2 k' to keep original files"
+
+    elif 3 == int(opt[0]):
+        # stat line info
+        if not f_out and not f_tgz:
+            print "no trace file detected, quit"
+            return
+        
+        if not f_out:
+            print "Start unzip and decode first.."
+            uncompress_log(l_realtime_dir)
+            decode_log(l_realtime_dir)
+        
         sdict = stat_line(l_realtime_dir);
         list_stat_result(l_realtime_dir, sdict);
 
-    elif 3 == opt: 
+    elif 4 == int(opt[0]): 
         # grep key words
         '''
         like
         392657733 17:35:13:711 voserr.c 616 ERIR:VOS non-recoverable error.
         '''
-        uncompress_log(l_realtime_dir)
-        decode_log(l_realtime_dir)
-        flush_rtrc(l_realtime_dir)
+        if not f_out and not f_tgz:
+            print "no trace file detected, quit"
+            return
+        
+        if not f_out:
+            print "Start unzip and decode first.."
+            uncompress_log(l_realtime_dir)
+            decode_log(l_realtime_dir)
 
         g_result = []
         key_words_default = {
@@ -603,12 +641,15 @@ def process(file_name,opt, dir_list):
         #dict.items ==> list, dict(list) ==> dict
         key_words_total = dict(key_words_default.items()\
         + key_words_custom.items());
+
+
         for key_word in key_words_total.keys():
             result = grep_key_word(key_word, l_realtime_dir);
             #transform to a list like ["keyword","4"]
             result = list(result.items()[0])
             result.append(key_words_total[key_word]); # add the remark field
             g_result.append(result);
+
         # list the result
         key = ["key word","find","Note"]
         print
@@ -620,10 +661,16 @@ def process(file_name,opt, dir_list):
 
         save_result(l_realtime_dir, g_result, "auto_result.txt",'w');
 
-    elif 4 == opt:
-        uncompress_log(l_realtime_dir)
-        decode_log(l_realtime_dir)
-        flush_rtrc(l_realtime_dir)
+    elif 5 == int(opt[0]):
+
+        if not f_out and not f_tgz:
+            print "no trace file detected, quit"
+            return
+        
+        if not f_out:
+            print "Start unzip and decode first.."
+            uncompress_log(l_realtime_dir)
+            decode_log(l_realtime_dir)
 
         # grep custom key word
         key_word_custom = raw_input("input key word to search ==> ")\
@@ -659,7 +706,7 @@ def process(file_name,opt, dir_list):
             grep_key_word_custom(cmd, l_realtime_dir, "further")
         
     else:
-        print("feature to be deployed..%d"%opt);
+        print("feature to be deployed..%d"%opt[0]);
         return False
 
     return True
@@ -827,19 +874,20 @@ if __name__ == "__main__" :
         print ("%s")%process_file,
         print '\033[0m'
         print("[1] - log information")
-        print("[2] - trace line repetition")
-        print("[3] - auto keyword search")
-        print("[4] - custom search")
+        print("[2] - unzip, decode and clean")
+        print("[3] - trace line repetition")
+        print("[4] - auto keyword search")
+        print("[5] - custom search")
         print ""
         print("[s] - select log file   [r] - refresh  [q] - quit")
 
         
-        opt = ""   
+        str = ""   
         com = []
-        opt = raw_input("your select ==> ").strip(" ")
-        if len(opt) == 0:
+        str = raw_input("your select ==> ").strip(" ")
+        if len(str) == 0:
             continue
-        com = opt.split(" ")
+        com = str.split(" ")
         opt = com[0]
 
         if opt == "q" or opt == "quit" or opt == "Q" or opt == "exit"\
@@ -878,7 +926,7 @@ if __name__ == "__main__" :
         #dir_list is a list contents like */*/realtime
         if len(com)>1 and com[1] in all_file:
             process_file = com[1]
-        f = process(process_file,opt, dir_list)
+        f = process(process_file,com, dir_list)
     
         if opt != "0" and f:
             print ""
