@@ -191,11 +191,12 @@ def uncompress_log(realtime_dir_list):
             if buff == '' or "ls" in buff.split(":"):
                 break;
             file = buff.strip("\n");
-            printd("unzip %s\n"%file);
+            printd("unzip %s\n"%file.replace("/media/sf_trace_repo/", ""))
             #  -m don't extract file modified time
             ptar = subprocess.Popen("tar -mxvf %s -C %s > /dev/null"%(file, dir), shell=True);
             ptar.wait();
 
+            printd ("finish unzip\n")
         print
     
 ###############end uncompress_log###############################
@@ -214,6 +215,7 @@ def decode_log(realtime_dir_list) :
         if buff == '' or "ls" in buff.split(":"):
             continue
 
+        printd("Start decode in %s\n"%dir)
         p = subprocess.Popen("./tools/BSCTraceDecode -l %s"%(dir), shell=True,\
         stdout=subprocess.PIPE, stderr=subprocess.STDOUT);
 
@@ -223,7 +225,10 @@ def decode_log(realtime_dir_list) :
                 break;
             elif buff == '':
                 continue;
-            printd("Decode |"+buff);
+            buff = buff.strip("\n")
+            print(""+buff.replace(dir, ""))
+
+        printd("Finish decode\n")
 
 ##############end decode_log##################################
 
@@ -238,56 +243,54 @@ def flush_rtrc(realtime_dir_list):
         p.wait()
         
         #delete more *.rtrc by manual uploaded
-        ne =  subprocess.Popen("find %s -name *.rtrc -o -name *.rtrc_backup |xargs rm"\
+        ne =  subprocess.Popen("find %s -name *.rtrc -o -name *.rtrc_backup |xargs rm -f"\
         %dir, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         ne.wait()
         buff = ne.stdout.readline()
         if buff == '':
             continue
         else:
-            print "error: buff",buff
+            logging.warning("%s"%(buff))
 
 ##############end flush_rtrc#################################
 
 
 def stat_line(realtime_dir_list) :
-    dir = realtime_dir_list[0]
+
+    mdict = {}
     
-    print 
-    printd("start stat line info %s ...\n"%dir);
-    mdict = {};
-    files = []
     for dir in realtime_dir_list:
-       file = glob.glob("%s/*.out"%dir)
-       files = files + file
+        print 
+        printd("compute  repetition in |%s\n"%dir);
+        file = glob.glob("%s/*.out"%dir)
+        count = len(file);
+        i = 1
 
-    count = len(files);
-    i = 1;
-
-    for fn in files:
-        print("[%2d/%2d analyzed] %s"%(i, count, fn.replace(dir,"")));
-        i = i + 1;
-        if not filter_file(fn):
-            continue;
-        file = open(fn);
-        while True:
-            lines = file.readlines(100000);
-            if not lines:
-                break;
-            n = 0;
-            for line in lines : 
-                #print(line.strip("\n"));
-                n = n + 1;
-                if filter_line(line):
-                    key_line = remove_time_stamp(line);
-                    if mdict.has_key(key_line):
-                        mdict[key_line] += 1;
-                    else:
-                        mdict[key_line] = 1;
+        for fn in file:
+            print("[%2d/%2d] %s"%(i, count, fn.replace(dir,"")));
+            i = i + 1;
+            if not filter_file(fn):
+                continue;
+            file = open(fn);
+            while True:
+                lines = file.readlines(100000);
+                if not lines:
+                    break;
+                n = 0;
+                for line in lines : 
+                    #print(line.strip("\n"));
+                    n = n + 1;
+                    if filter_line(line):
+                        key_line = remove_time_stamp(line);
+                        if mdict.has_key(key_line):
+                            mdict[key_line] += 1;
+                        else:
+                            mdict[key_line] = 1;
+        printd("finished\n")
                         
     # sort
-    sdict = sorted(mdict.iteritems(), key=lambda d:d[1], reverse = True);
-    return sdict;
+    sdict = sorted(mdict.iteritems(), key=lambda d:d[1], reverse = True)
+    return sdict
 ################end state_line#####################
 
 def read_key_word_list(file):
@@ -411,7 +414,7 @@ def grep_key_word(key_word, realtime_dir_list):
     result = {}
     result[key_word] = 0
     for dir in realtime_dir_list:
-        printd("start search key word '%s' in %s ...\n"%(key_word, dir));
+        printd ("start search: '%s' in %s\n"%(key_word, dir.replace("/media/sf_trace_repo/", "")))
         count = 0;
         p = subprocess.Popen("grep -c '%s' %s/*.out"%(key_word, dir), shell=True,\
         stdout=subprocess.PIPE);
@@ -432,7 +435,11 @@ def grep_key_word(key_word, realtime_dir_list):
                 count += int(data[1])
         result[key_word] += count 
     
-        printd("finish,find key word '%s' %d times\n"%(key_word, result[key_word]))
+        if result[key_word] > 0 and len(data) > 1:
+            print '\033[1;31;40m',
+            printd("'%s' found, %d hits in file %s "\
+            %(key_word,result[key_word], data[0].replace(dir,"")))
+            print '\033[0m'
     result[key_word] = str(result[key_word])
 
     return result
@@ -468,7 +475,7 @@ def list_stat_result(realtime_dir_list, sdict):
     stat_result = open("%srepeat_result.txt"%dir, "w");
     i = 0;
     print ""
-    print("************* repeated trace listed, spam? ***************")
+    print("TRACE REPEAT")
     print "-"*60
     print ("Ra|Repeats|" + "content")
     print "-"*60
@@ -481,7 +488,7 @@ def list_stat_result(realtime_dir_list, sdict):
         elif i == 10:
             print("...")
             print "-"*60
-            print("full stat result in %srepeat_result.txt"%(dir))
+            print("Details saved in %srepeat_result.txt"%(dir))
             break
         i = i + 1;
 
@@ -490,11 +497,11 @@ def list_stat_result(realtime_dir_list, sdict):
 ##########################end list_stat_result##############################
 
 
-def save_result(realtime_dir_list, result_list, to_name):
+def save_result(realtime_dir_list, result_list, to_name, method = 'w'):
 
     dir = realtime_dir_list[0].strip("realtime")
     try:
-        h = open("%s%s"%(dir,to_name), "w");
+        h = open("%s%s"%(dir,to_name), method)
         h.write("key word: counts\n")
         for result in result_list:
             for i in range(len(result)):
@@ -551,7 +558,7 @@ def process(file_name,opt, dir_list):
                 res.append(item)
         key = ["name","date","start time","end time","version"]
         print
-        printd("LOG INFOMATION:\n");
+        print("LOG INFOMATION");
         display(key, res,40) 
 
 
@@ -598,7 +605,7 @@ def process(file_name,opt, dir_list):
         # list the result
         key = ["key word","find","Note"]
         print
-        print("************** Search Results *************")
+        print("AUTO SEARCH RESULTS")
         g_result = sorted(g_result, key=lambda result:result[1],reverse=True)
         display(key, g_result,40) 
 
@@ -763,7 +770,7 @@ if __name__ == "__main__" :
     contents = []
     f_change = True
     print "\n"*2 
-    title = "Hello, Welcome to BSC SLA v1.0!"
+    title = "Hello, Welcome to BSC SLA v1.0"
     print '\033[1;31;40m',
     print title.center(70),
     print '\033[0m',
@@ -781,7 +788,7 @@ if __name__ == "__main__" :
             all_file.append(contents[i][0])
 
         print ""
-        print "Below are all the trace files:"
+        print "LOG FILES:"
         key = ["File","Date"]
         display(key,contents,0)
         
@@ -811,11 +818,11 @@ if __name__ == "__main__" :
         print ("%s")%process_file,
         print '\033[0m'
         print("[1] - log information")
-        print("[2] - junk log detect")
-        print("[3] - auto bug detect")
-        print("[4] - keyword search")
+        print("[2] - trace line repetition")
+        print("[3] - auto keyword search")
+        print("[4] - custom search")
         print ""
-        print("[s]- select trace file   [r] - refresh list  [q] - quit")
+        print("[s] - select log file   [r] - refresh  [q] - quit")
 
         
         opt = ""   
