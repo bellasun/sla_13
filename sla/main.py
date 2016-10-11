@@ -322,11 +322,11 @@ def read_key_word_list(file):
 def grep_key_word_custom(key_word, realtime_dir_list, type="all"):
     
     to_name = "custom_search"
-    limit = "*" + type +"*.out"
+    scale = "*" + type +"*.out"
     if type == "all":
-        limit = "*.out"
+        scale = "*.out"
     elif type == "further":
-        limit = to_name
+        scale = to_name
     
     hits_total = 0
     hits = 0
@@ -342,8 +342,8 @@ def grep_key_word_custom(key_word, realtime_dir_list, type="all"):
             if type == "further":
                 dir = dir[:-9]
             printd("start grep custom key word '%s' in %s/%s ...\n"\
-            %(key_word, dir, limit));
-            p = subprocess.Popen("grep -ci '%s' %s/%s"%(key_word, dir, limit),\
+            %(key_word, dir, scale));
+            p = subprocess.Popen("grep -ci '%s' %s/%s"%(key_word, dir, scale),\
             shell=True, stdout=subprocess.PIPE);
             flag = 0;
             while True:
@@ -359,7 +359,8 @@ def grep_key_word_custom(key_word, realtime_dir_list, type="all"):
                 if len(data) > 1: #int(data[1]) > 0:
                     ph = subprocess.Popen("grep -ihn '%s' %s"%(key_word, data[0]),\
                     shell=True, stdout=subprocess.PIPE);
-                    h.write("-------- %s hits in file:%s\n"%(data[1],data[0]))
+                    if data[1]>0:
+                        h.write("-------- %s hits in file:%s\n"%(data[1],data[0]))
                     while True:
                         line = ph.stdout.readline();
                         if line == '' and ph.poll() != None:
@@ -371,15 +372,19 @@ def grep_key_word_custom(key_word, realtime_dir_list, type="all"):
                      
                     hits = int(data[1])
                     if hits > 0:
-                        print "%s hits for this file %s"%(data[1],data[0])
+                        print '\033[1;31;40m',
+                        print "%s hits in file %s"%(data[1],data[0].replace(dir,"")),
+                        print '\033[0m'
+                        hits_total += hits 
 
                 else:#for only one result case:
-                    ph = subprocess.Popen("grep -ihn '%s' %s/%s"%(key_word, dir, limit),\
+                    ph = subprocess.Popen("grep -ihn '%s' %s/%s"%(key_word, dir, scale),\
                     shell=True, stdout=subprocess.PIPE);
                     if type == "further":
                         h.write("---Twice Search Result----- %s hits in the only file\n"%(data[0]))
                     else:
-                        h.write("-------- %s hits in the only file\n"%(data[0]))
+                        if data[0]>0:
+                            h.write("-------- %s hits in the only file\n"%(data[0]))
                     while True:
                         line = ph.stdout.readline();
                         if line == '' and ph.poll() != None:
@@ -390,9 +395,11 @@ def grep_key_word_custom(key_word, realtime_dir_list, type="all"):
                         print(line.strip("\n"))
                     hits = int(data[0])
                     if hits > 0:
+                        print '\033[1;31;40m',
                         print "%s hits for this file"%data[0]
+                        print '\033[0m'
+                        hits_total += hits
                     
-            hits_total += hits 
             hits = 0
 
             if type == "futher":
@@ -403,8 +410,8 @@ def grep_key_word_custom(key_word, realtime_dir_list, type="all"):
         return
 
     h.close()
-    print("custom search finished! result saved in %s%s"\
-    %(realtime_dir_list[0].strip("realtime"),to_name))
+    printd("custom search finished!\n") 
+    print("result saved in %s%s"%(realtime_dir_list[0].strip("realtime"),to_name))
     return hits_total
 ############## end grep_key_word_custom ###########################
 
@@ -611,7 +618,7 @@ def process(file_name,opt, dir_list):
 
         # grep the key word detail
 
-        save_result(l_realtime_dir, g_result, "auto_result.txt");
+        save_result(l_realtime_dir, g_result, "auto_result.txt",'w');
 
     elif 4 == opt:
         uncompress_log(l_realtime_dir)
@@ -635,18 +642,20 @@ def process(file_name,opt, dir_list):
         
         end_c = time.time()
         interval_c = end_c - start_c
-
-        if len(cmd) == 1 and hits_total > 0 and interval_c > 12:
-            print "a kindly tip: key word followed with VCE type to accelerate searching"
+        if len(cmd) == 1 and hits_total > 0 and interval_c > 30:
+            print "key word followed with VCE type to accelerate searching"
             print "like: 'CCDC_FFM,OCPR'"
 
-        #Further search:
-        if hits_total <= 500:
+        #[5.5] feature: Further Search
+        if interval_c < 3 or hits_total <= 200:
             return
-        cmd = raw_input("Input for a further search===>")
-        if cmd == "q" or cmd == "Q" or len(cmd)<=2 or cmd == "NOK":
+
+        print
+        cmd = raw_input("want a further search? ===>")
+        if cmd == "q" or cmd == "Q" or cmd == "NOK" or len(cmd) <= 2: 
             return
         else:
+            #search again based on the previous result
             grep_key_word_custom(cmd, l_realtime_dir, "further")
         
     else:
@@ -748,7 +757,7 @@ def display(key,contents, num):
 
     print "-"* num_len
 
-#####################################################
+################### end display ########### #####################
 
 def choose_file(all_files,choose):
 
