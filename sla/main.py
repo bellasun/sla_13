@@ -162,27 +162,33 @@ def read_log_info(file_path):
 
     h_log.close();
     return info;
-########################################################
+#################### end read_log_info ##########################################
 
 
 def uncompress_log(realtime_dir_list):
 
     for dir in realtime_dir_list: 
 
+        #Bug1 decide if untar by *.tgz existed or not
         #decide if untar necessary:
-        ne =  subprocess.Popen("find %s -name *.rtrc.out"%dir, shell=True, stdout=subprocess.PIPE,\
-                stderr=subprocess.STDOUT)
-        ne.wait()
-        buff = ne.stdout.readline()
-        if buff != "":
-            continue
+        #ne =  subprocess.Popen("find %s -name *.rtrc.out"%dir, shell=True,\
+        #stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        #ne.wait()
+        #buff = ne.stdout.readline()
+        #print "DEBUG dir",dir
+        #print "DEBUG buff",buff
+        #if buff != "":
+        #    continue
 
         p = subprocess.Popen("ls %s/*.tgz"%dir, shell=True, stdout=subprocess.PIPE,\
         stderr=subprocess.STDOUT)
         p.wait()
         while True:
             buff = p.stdout.readline();
-            if buff == '' and p.poll() != None:  
+            #ls output is different with find when no file seached:
+            #ls: cannot access dir1/*.tgz: No such file or directory
+            #no *.tgz case, just do nothing
+            if buff == '' or "ls" in buff.split(":"):
                 break;
             file = buff.strip("\n");
             printd("unzip %s\n"%file);
@@ -199,13 +205,13 @@ def decode_log(realtime_dir_list) :
 
     for dir in realtime_dir_list:
 
+        #Bug1 decide to decode by rtrc files existed
         #decide if untar necessary:
-        ne =  subprocess.Popen("find %s -name *.rtrc.out"%dir, shell=True, stdout=subprocess.PIPE,\
+        ne =  subprocess.Popen("find %s -name *.rtrc"%dir, shell=True, stdout=subprocess.PIPE,\
                 stderr=subprocess.STDOUT)
         ne.wait()
         buff = ne.stdout.readline()
-        if buff != "":
-    #        print "decoded trace already exist."
+        if buff == '' or "ls" in buff.split(":"):
             continue
 
         p = subprocess.Popen("./tools/BSCTraceDecode -l %s"%(dir), shell=True,\
@@ -217,7 +223,7 @@ def decode_log(realtime_dir_list) :
                 break;
             elif buff == '':
                 continue;
-            printd(buff);
+            printd("Decode |"+buff);
 
 ##############end decode_log##################################
 
@@ -225,11 +231,24 @@ def decode_log(realtime_dir_list) :
 def flush_rtrc(realtime_dir_list):
 
     for dir in realtime_dir_list:
-        p = subprocess.Popen("rm %s/*.rtrc %s/*.rtrc_backup"%(dir,dir), shell=True,\
+        #Bug 1 delete *.tgz also 
+        p = subprocess.Popen("rm %s/*.rtrc %s/*.rtrc_backup %s/*.tgz"\
+        %(dir,dir,dir), shell=True,\
         stdout=subprocess.PIPE, stderr=subprocess.STDOUT);
         p.wait()
+        
+        #delete more *.rtrc by manual uploaded
+        ne =  subprocess.Popen("find %s -name *.rtrc -o -name *.rtrc_backup |xargs rm"\
+        %dir, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        ne.wait()
+        buff = ne.stdout.readline()
+        if buff == '':
+            continue
+        else:
+            print "error: buff",buff
 
 ##############end flush_rtrc#################################
+
 
 def stat_line(realtime_dir_list) :
     dir = realtime_dir_list[0]
@@ -244,8 +263,9 @@ def stat_line(realtime_dir_list) :
 
     count = len(files);
     i = 1;
+
     for fn in files:
-        printd("[%2d/%2d] %s\n"%(i, count, fn));
+        print("[%2d/%2d analyzed] %s"%(i, count, fn.replace(dir,"")));
         i = i + 1;
         if not filter_file(fn):
             continue;
@@ -518,8 +538,8 @@ def process(file_name,opt, dir_list):
     if opt.isdigit():
         opt = int(opt)
     else:
-        print "Please kindly input a correct command"
-        return    
+        print "please kindly input a correct command"
+        return False   
 
     l_realtime_dir = dir_list
     
@@ -623,7 +643,10 @@ def process(file_name,opt, dir_list):
             grep_key_word_custom(cmd, l_realtime_dir, "further")
         
     else:
-        printd("feature to be deployed..%d\n"%opt);
+        print("feature to be deployed..%d"%opt);
+        return False
+
+    return True
         
 ##################### end process ###########################################
 def list_dir(dir_path):
@@ -839,9 +862,9 @@ if __name__ == "__main__" :
         #dir_list is a list contents like */*/realtime
         if len(com)>1 and com[1] in all_file:
             process_file = com[1]
-        process(process_file,opt, dir_list)
+        f = process(process_file,opt, dir_list)
     
-        if opt != "0":
+        if opt != "0" and f:
             print ""
             cmd = raw_input("tap enter...")
             if cmd == "q" or cmd == "Q" or cmd == "exit" or cmd == "Exit":
