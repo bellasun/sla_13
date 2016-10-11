@@ -165,8 +165,14 @@ def read_log_info(file_path):
 #################### end read_log_info ##########################################
 
 
-def uncompress_log(realtime_dir_list):
+def uncompress_log(realtime_dir_list, type = 'all'):
 
+    
+    scale = "%s*.tgz"%type
+    if type == "all":
+        scale = "*.tgz"
+    else:
+        print "partial decode: %s"%scale
     for dir in realtime_dir_list: 
 
         #Bug1 decide if untar by *.tgz existed or not
@@ -178,7 +184,7 @@ def uncompress_log(realtime_dir_list):
         #if buff != "":
         #    continue
 
-        p = subprocess.Popen("ls %s/*.tgz"%dir, shell=True, stdout=subprocess.PIPE,\
+        p = subprocess.Popen("ls %s/%s"%(dir,scale), shell=True, stdout=subprocess.PIPE,\
         stderr=subprocess.STDOUT)
         p.wait()
         while True:
@@ -206,8 +212,8 @@ def decode_log(realtime_dir_list) :
 
         #Bug1 decide to decode by rtrc files existed
         #decide if untar necessary:
-        ne =  subprocess.Popen("find %s -name *.rtrc"%dir, shell=True, stdout=subprocess.PIPE,\
-                stderr=subprocess.STDOUT)
+        ne =  subprocess.Popen("find %s -name *.rtrc"%dir, shell=True,\
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         ne.wait()
         buff = ne.stdout.readline()
         if buff == '' or "ls" in buff.split(":"):
@@ -235,6 +241,7 @@ def flush_rtrc(realtime_dir_list):
 
     for dir in realtime_dir_list:
         #Bug 1 delete *.tgz also 
+        printd("start flush *.tgz in %s\n"%dir)
         p = subprocess.Popen("rm %s/*.rtrc %s/*.rtrc_backup %s/*.tgz"\
         %(dir,dir,dir), shell=True,\
         stdout=subprocess.PIPE, stderr=subprocess.STDOUT);
@@ -246,6 +253,7 @@ def flush_rtrc(realtime_dir_list):
         ne.wait()
         buff = ne.stdout.readline()
         if buff == '':
+            printd("Flush finished\n")
             continue
         else:
             logging.warning("%s"%(buff))
@@ -584,18 +592,29 @@ def process(file_name,opt, dir_list):
         display(key, res,40) 
     elif 2 == int(opt[0]):
 
-
+        f_flush = True
         if not f_tgz:
             print "No '*.tgz' files detected, over"
             return
 
-        uncompress_log(l_realtime_dir)
-        decode_log(l_realtime_dir)
-        if len(opt) > 1 and (opt[1] == "k" or opt[1] == "K"):
+        tgz_name = ["DTC","OCPR","SCPR","TCU","dtc","ocpr","scpr","tcu"]
+        if len(opt)>1 and opt[1].strip(" ") in tgz_name:
+            f_flush = False
+            
+            uncompress_log(l_realtime_dir, opt[1])
+        elif len(opt)>1 and opt[1] not in tgz_name:
+            print "please input correct tgz name like 'OCPR','DTC'.. over"
             return
-        flush_rtrc(l_realtime_dir)
+        else:
+            uncompress_log(l_realtime_dir, 'all')
+        decode_log(l_realtime_dir)
+        if len(opt) > 1 and (opt[1].strip(" ") == "k" or opt[1].strip(" ") == "K"):
+            print "*.tgz keeped"
+            return
 
-        print "tip: input command '2 k' to keep original files"
+        if f_flush:
+           flush_rtrc(l_realtime_dir)
+           print "tip: input command '2,k' to keep *.tgz files"
 
     elif 3 == int(opt[0]):
         # stat line info
@@ -887,13 +906,13 @@ if __name__ == "__main__" :
         str = raw_input("your select ==> ").strip(" ")
         if len(str) == 0:
             continue
-        com = str.split(" ")
+        com = str.split(",")
         opt = com[0]
 
         if opt == "q" or opt == "quit" or opt == "Q" or opt == "exit"\
         or opt == "Exit":
             print ""
-            print("Complete! Bye!  %s\n"%time.asctime())
+            print("Complete! Bye!  %s\n"%time.asctime()),
             print "*"*50
             print ""
             exit(0)
