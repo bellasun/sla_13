@@ -591,6 +591,7 @@ def process(file_name,opt, dir_list):
         print("LOG INFOMATION");
         display(key, res,40) 
     elif 2 == int(opt[0]):
+        start_c = time.time()
 
         f_flush = True
         if not f_tgz:
@@ -607,7 +608,13 @@ def process(file_name,opt, dir_list):
             return
         else:
             uncompress_log(l_realtime_dir, 'all')
+            
         decode_log(l_realtime_dir)
+        end_c = time.time()
+        interval_c = end_c - start_c
+
+        if len(opt) == 1 and interval_c > 30:
+            print "tip: input '2,OCPR' to only unzip OCPR.tgz"
         if len(opt) > 1 and (opt[1].strip(" ") == "k" or opt[1].strip(" ") == "K"):
             print "*.tgz keeped"
             return
