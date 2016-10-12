@@ -920,12 +920,12 @@ if __name__ == "__main__" :
         print("[s] - select log file   [r] - refresh  [q] - quit")
 
         
-        str = ""   
+        s = ""   
         com = []
-        str = raw_input("your select ==> ").strip(" ")
-        if len(str) == 0:
+        s = raw_input("your select ==> ").strip(" ")
+        if len(s) == 0:
             continue
-        com = str.split(",")
+        com = s.split(",")
         opt = com[0]
 
         if opt == "q" or opt == "quit" or opt == "Q" or opt == "exit"\
