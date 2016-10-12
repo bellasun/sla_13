@@ -213,7 +213,6 @@ def decode_log(realtime_dir_list, vce_id = "all"):
         scale = ""
 
     for dir in realtime_dir_list:
-        print "DEBUG dir",dir
         #Bug1 decide to decode by rtrc files existed
         #decide if untar necessary:
         ne =  subprocess.Popen("find %s -name *.rtrc"%dir, shell=True,\
@@ -230,7 +229,6 @@ def decode_log(realtime_dir_list, vce_id = "all"):
         p = subprocess.Popen("./tools/BSCTraceDecode -l %s%s"%(dir,scale), shell=True,\
         stdout=subprocess.PIPE, stderr=subprocess.STDOUT);
 
-        print "DEBUG file:%s%s"%(dir,scale)
         while True:
             buff = p.stdout.readline();
             if buff == '' and p.poll() != None:
@@ -540,7 +538,7 @@ def process(file_name,opt, dir_list):
     global contents
 
     if not opt[0].isdigit():
-        print "please kindly input a correct command"
+        print "please kindly input a correct command, with ',' betwween multi commands"
         return False   
 
     l_realtime_dir = dir_list
@@ -591,7 +589,7 @@ def process(file_name,opt, dir_list):
         elif not f_out and (f_tgz or f_rtrc):
             status = "not decoded"
         else:
-            print "status umbiguious:"
+            print "unknow"
 
         res[0].append(status)
         key = ["name","date","start time","end time","version","status"]
@@ -611,7 +609,7 @@ def process(file_name,opt, dir_list):
             f_flush = False
             
             uncompress_log(l_realtime_dir, opt[1])
-        elif len(opt)>1 and opt[1] not in tgz_name:
+        elif len(opt)>1 and opt[1] not in tgz_name and opt[1] != 'k' and opt[1] != 'K':
             print "please input correct tgz name like 'OCPR','DTC'.. over"
             return
         else:
@@ -628,7 +626,7 @@ def process(file_name,opt, dir_list):
         if len(opt) == 1 and interval_c > 30:
             print "tip: input '2,OCPR' to only unzip OCPR.tgz"
         if len(opt) > 1 and (opt[1].strip(" ") == "k" or opt[1].strip(" ") == "K"):
-            print "*.tgz keeped"
+            print "*.tgz,*.rtrc and *.rtrc_backup files are kept"
             return
 
         if f_flush:
@@ -736,15 +734,35 @@ def process(file_name,opt, dir_list):
             return
 
         print
-        cmd = raw_input("want a further search? ===>")
-        if cmd == "q" or cmd == "Q" or cmd == "NOK" or len(cmd) <= 2: 
+        print "Further Search based on previous result:"
+        cmd = raw_input("input keyword('q' to quit) ===>").strip(" ")
+        if cmd == "q" or cmd == "Q" or cmd == "NOK" or len(cmd) <= 2\
+        or cmd == "quit": 
             return
         else:
             #search again based on the previous result
             grep_key_word_custom(cmd, l_realtime_dir, "further")
+
+    elif 0 == int(opt[0]):
+        
+
+        try:
+            read_me = "../README.md" 
+            h = open("%s"%read_me, "r");
+            line = h.readlines();
+            print 
+            for l in line:
+                print l.strip("\n")
+
+            print
+        except Exception as e:
+        #just return am empty info if error
+            print e
+            return 
+        h.close()
         
     else:
-        print("feature to be deployed..%d"%opt[0]);
+        print("feature to be deployed..%s"%opt[0]);
         return False
 
     return True
@@ -755,11 +773,13 @@ def list_dir(dir_path):
     #List all the files in the root path with log info
 
     '''
-    
+   
+    t_a = time.time()
     contents = []
     #ls -F ==> dir1/ dir2/, -t sort by time
-    p = subprocess.Popen("ls %s -Ft|grep /"%dir_path, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT);  
-    p.wait()
+    p = subprocess.Popen("ls %s -Ft|grep /"%dir_path, shell=True,\
+    stdout=subprocess.PIPE, stderr=subprocess.STDOUT)  
+    #p.wait()
     while True:
         file_name = p.stdout.readline()
         if file_name == "" and p.poll() != None:
@@ -772,8 +792,7 @@ def list_dir(dir_path):
         log_info_name = "BSC-Genaral*"
         p_find = subprocess.Popen("find %s -name %s"%(trace_file_path,log_info_name),\
         shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT);  
-        p_find.wait()
-        
+#        p_find.wait()
         while True:
             file_info = []
             info = {}
@@ -781,6 +800,8 @@ def list_dir(dir_path):
             if res == "" and p_find.poll() != None:
                 break
             res = res.strip("\n")
+            if res == "":
+                continue
             info = read_log_info(res)
             #judge if it is a master omcp by has_key starttime and endtime?
             if info.has_key("starttime") and info.has_key("endtime")\
@@ -795,7 +816,10 @@ def list_dir(dir_path):
                 #This is slave omcp file
                 pass
 
-    logging.info("logging,contents = %s"%(contents))
+    #logging.info("logging,contents = %s"%(contents))
+    t_b = time.time()
+    interval = t_b - t_a
+    #print "DEBUG total time used:%.3f seconds"%(interval/1.000)
     
     return contents
 ######################################################
@@ -863,6 +887,8 @@ if __name__ == "__main__" :
     root_parent = "/media/sf_trace_repo"
     contents = []
     f_change = True
+    f_default = True
+
     print "\n"*2 
     title = "Hello, Welcome to BSC SLA v1.0"
     print '\033[1;31;40m',
@@ -871,11 +897,11 @@ if __name__ == "__main__" :
     print "\n"*2
     #logging.basicConfig(level=logging.INFO, format="[%(asctime)s] %(name)s:%(levelname)s: %(message)s") 
 
-    f_default = True
     while True:
         #Display the title and show all available trace diectories
         if f_change:
             contents = list_dir(root_parent)
+            f_change = False
         
         all_file = []
         for i in range(len(contents)):
@@ -883,7 +909,7 @@ if __name__ == "__main__" :
 
         print ""
         print "LOG FILES:"
-        key = ["File","Date"]
+        key = ["Log Name","Log Date"]
         display(key,contents,0)
         
         if f_default:
@@ -891,6 +917,7 @@ if __name__ == "__main__" :
                 process_file = contents[0][0]
             else:
                 process_file = " "
+            f_default = False
         
         name =(root_parent + "/" + process_file).replace(" ", "\ ")
         p = subprocess.Popen("find %s -name realtime"%(name), shell=True,\
@@ -911,6 +938,7 @@ if __name__ == "__main__" :
         print '\033[1;31;40m',
         print ("%s")%process_file,
         print '\033[0m'
+        print("[0] - readme")
         print("[1] - log information")
         print("[2] - unzip, decode and clean")
         print("[3] - trace line repetition")
@@ -920,6 +948,7 @@ if __name__ == "__main__" :
         print("[s] - select log file   [r] - refresh  [q] - quit")
 
         
+        #input command#####################
         s = ""   
         com = []
         s = raw_input("your select ==> ").strip(" ")
@@ -961,17 +990,14 @@ if __name__ == "__main__" :
             contents = list_dir(root_parent)
             continue
 
+        #process input command
         #dir_list is a list contents like */*/realtime
-        if len(com)>1 and com[1] in all_file:
-            process_file = com[1]
         f = process(process_file,com, dir_list)
     
-        if opt != "0" and f:
-            print ""
-            cmd = raw_input("tap enter...")
-            if cmd == "q" or cmd == "Q" or cmd == "exit" or cmd == "Exit":
-                print "Goodbye!"
-                break
+        cmd = raw_input("tap enter...")
+        if cmd == "q" or cmd == "Q" or cmd == "exit" or cmd == "Exit":
+            print "Goodbye!"
+            break
    #while True
 ###############end main################
 
