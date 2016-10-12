@@ -172,7 +172,7 @@ def uncompress_log(realtime_dir_list, type = 'all'):
     if type == "all":
         scale = "*.tgz"
     else:
-        print "partial decode: %s"%scale
+        print "start partial unzip: %s"%scale
     for dir in realtime_dir_list: 
 
         #Bug1 decide if untar by *.tgz existed or not
@@ -206,10 +206,14 @@ def uncompress_log(realtime_dir_list, type = 'all'):
 ###############end uncompress_log###############################
 
 
-def decode_log(realtime_dir_list) :
+def decode_log(realtime_dir_list, vce_id = "all"):
+
+    scale = "/*\[%s\]*.rtrc*"%vce_id
+    if vce_id == "all":
+        scale = ""
 
     for dir in realtime_dir_list:
-
+        print "DEBUG dir",dir
         #Bug1 decide to decode by rtrc files existed
         #decide if untar necessary:
         ne =  subprocess.Popen("find %s -name *.rtrc"%dir, shell=True,\
@@ -219,10 +223,14 @@ def decode_log(realtime_dir_list) :
         if buff == '' or "ls" in buff.split(":"):
             continue
 
-        printd("Start decode in %s\n"%dir)
-        p = subprocess.Popen("./tools/BSCTraceDecode -l %s"%(dir), shell=True,\
+        if vce_id == "all":
+            printd("Start decode in %s\n"%dir)
+        else:
+            printd("start partial decode for VCE_ID: [%s]\n"%vce_id)
+        p = subprocess.Popen("./tools/BSCTraceDecode -l %s%s"%(dir,scale), shell=True,\
         stdout=subprocess.PIPE, stderr=subprocess.STDOUT);
 
+        print "DEBUG file:%s%s"%(dir,scale)
         while True:
             buff = p.stdout.readline();
             if buff == '' and p.poll() != None:
@@ -609,7 +617,11 @@ def process(file_name,opt, dir_list):
         else:
             uncompress_log(l_realtime_dir, 'all')
             
-        decode_log(l_realtime_dir)
+        if len(opt) > 2 and opt[1].strip(" ") in tgz_name and opt[2].strip(" ").isdigit():
+            decode_log(l_realtime_dir,opt[2])
+        else:
+            decode_log(l_realtime_dir,'all')
+
         end_c = time.time()
         interval_c = end_c - start_c
 
