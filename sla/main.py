@@ -15,6 +15,21 @@ f_change = True
 ###############################################################################
 # common functions
 
+#ornament to clculate and print the time used
+def time_interval(func):
+    def _deco(*args, **kwargs):
+
+        start = time.time()
+        ret = func(*args, **kwargs)
+        end = time.time()
+        interval = end - start
+        print
+        print "DEBUG function:'%s' total time used:%.3f seconds"\
+        %(func.__name__,interval/1.000)
+        print
+        return ret
+    return _deco
+
 # calculate the time difference between stime1 and stime2
 # stime1, stime2 format: e.g. 2016-05-06 10:12:59
 # output: 2 days, 4:12:58
@@ -55,8 +70,8 @@ def filter_line(line):
                           16: 78 03 16 00 01 00 40 00  07 01 00 00 78 03 A0 14 
     '''
     filter_lines = ["ticks upd,sec=", 
-        "voscomm.c 182 IMSD:", "voscomm.c 185 IMSD:",
-        "vostask.c 1100 IMRV:", "vostask.c 1103 IMRV:", 
+        "voscomm.c 182 IMSD:", "voscomm.c 185 IMSD:","voscomm.c 264IMSD:",
+        "vostask.c 1100 IMRV:", "vostask.c 1103 IMRV:", "vostask.c 1145 IMRV:", 
         "cmw-common.c 563 DBUG:Hdr: ", "\t" * 5, "cmw-common.c 558 DBUG:Hdr:",
         # vos.c 120 ITFP:GET_MSG_BUF called by BackgroundTask
         # vos.c 120 ITFP:GET_MSG_BUF called by G_S_YS9SAZ_BSC_LAPD_L2
@@ -680,6 +695,7 @@ def process(file_name,opt, dir_list):
 
 
         for key_word in key_words_total.keys():
+            #[4] auto keyword search
             result = grep_key_word(key_word, l_realtime_dir);
             #transform to a list like ["keyword","4"]
             result = list(result.items()[0])
@@ -768,18 +784,18 @@ def process(file_name,opt, dir_list):
     return True
         
 ##################### end process ###########################################
+@time_interval
 def list_dir(dir_path):
     '''
     #List all the files in the root path with log info
 
     '''
    
-    t_a = time.time()
     contents = []
     #ls -F ==> dir1/ dir2/, -t sort by time
     p = subprocess.Popen("ls %s -Ft|grep /"%dir_path, shell=True,\
     stdout=subprocess.PIPE, stderr=subprocess.STDOUT)  
-    #p.wait()
+    p.wait()
     while True:
         file_name = p.stdout.readline()
         if file_name == "" and p.poll() != None:
@@ -788,7 +804,10 @@ def list_dir(dir_path):
         file_name = file_name.strip("\n")
         trace_file_path= "%s/%s" %(dir_path,file_name)
         #deal with blanks in the path since find command would failed
-        trace_file_path = trace_file_path.replace(" ", "\ ")
+        file_blank = trace_file_path#.replace(" ", "\ ")
+        if len(trace_file_path.split(" "))>1:
+            print "Trace file name has blank, ignore this file: %s"%file_blank
+            continue
         log_info_name = "BSC-Genaral*"
         p_find = subprocess.Popen("find %s -name %s"%(trace_file_path,log_info_name),\
         shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT);  
@@ -817,12 +836,11 @@ def list_dir(dir_path):
                 pass
 
     #logging.info("logging,contents = %s"%(contents))
-    t_b = time.time()
-    interval = t_b - t_a
-    #print "DEBUG total time used:%.3f seconds"%(interval/1.000)
     
     return contents
-######################################################
+
+###################### end list_dir ################################
+
 
 def display(key,contents, num):
     '''
