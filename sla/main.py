@@ -784,18 +784,67 @@ def process(file_name,opt, dir_list):
     return True
         
 ##################### end process ###########################################
+
+
+@time_interval
+def save_log_info(log_info_name,trace_file_path,file_name):
+    '''
+    this function search, read and the save loginfo to 
+    global contents
+    '''
+    global contents
+
+    #start to search BSC-Genaral.txt in this director:
+    p_find = subprocess.Popen("find %s -name %s"%(trace_file_path,log_info_name),\
+    shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT);  
+    #p_find.wait()
+
+    while True:
+        file_info = []
+        info = {}
+        res = p_find.stdout.readline()
+        if res == "" and p_find.poll() != None:
+            break
+        res = res.strip("\n")
+        if res == "":
+            continue
+        info = read_log_info(res)
+        #judge if it is a master omcp by has_key starttime and endtime?
+        if info.has_key("starttime") and info.has_key("endtime")\
+        and info.has_key("date") and info.has_key("version"):
+            file_info.append(file_name.strip("/"))
+            file_info.append(info["date"])
+            file_info.append(info["starttime"])
+            file_info.append(info["endtime"])
+            file_info.append(info["version"])
+            contents.append(file_info)
+        else:
+            #This is slave omcp file
+            pass
+
+    return contents
+
+############# end save_log_info #####################
+
+
 @time_interval
 def list_dir(dir_path):
     '''
     #List all the files in the root path with log info
 
     '''
+    global contents
    
     contents = []
+    log_info_name = "BSC-Genaral*"
+
+    #DEBUG i
+    i = 0
     #ls -F ==> dir1/ dir2/, -t sort by time
     p = subprocess.Popen("ls %s -Ft|grep /"%dir_path, shell=True,\
     stdout=subprocess.PIPE, stderr=subprocess.STDOUT)  
     p.wait()
+
     while True:
         file_name = p.stdout.readline()
         if file_name == "" and p.poll() != None:
@@ -806,35 +855,43 @@ def list_dir(dir_path):
         #deal with blanks in the path since find command would failed
         file_blank = trace_file_path#.replace(" ", "\ ")
         if len(trace_file_path.split(" "))>1:
-            print "Trace file name has blank, ignore this file: %s"%file_blank
+            print "DEBUG: Trace file name has blank, ignore this file: %s"%file_blank
             continue
-        log_info_name = "BSC-Genaral*"
-        p_find = subprocess.Popen("find %s -name %s"%(trace_file_path,log_info_name),\
-        shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT);  
-#        p_find.wait()
-        while True:
-            file_info = []
-            info = {}
-            res = p_find.stdout.readline()
-            if res == "" and p_find.poll() != None:
-                break
-            res = res.strip("\n")
-            if res == "":
-                continue
-            info = read_log_info(res)
-            #judge if it is a master omcp by has_key starttime and endtime?
-            if info.has_key("starttime") and info.has_key("endtime")\
-            and info.has_key("date") and info.has_key("version"):
-                file_info.append(file_name.strip("/"))
-                file_info.append(info["date"])
-                file_info.append(info["starttime"])
-                file_info.append(info["endtime"])
-                file_info.append(info["version"])
-                contents.append(file_info)
-            else:
-                #This is slave omcp file
-                pass
 
+        contents = save_log_info(log_info_name,dir_path,file_name)
+        
+        #i = i + 1
+        #start = time.time()
+        ##start to search BSC-Genaral.txt in this director:
+        #p_find = subprocess.Popen("find %s -name %s"%(trace_file_path,log_info_name),\
+        #shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT);  
+        ##p_find.wait()
+
+        #while True:
+        #    file_info = []
+        #    info = {}
+        #    res = p_find.stdout.readline()
+        #    if res == "" and p_find.poll() != None:
+        #        break
+        #    res = res.strip("\n")
+        #    if res == "":
+        #        continue
+        #    info = read_log_info(res)
+        #    #judge if it is a master omcp by has_key starttime and endtime?
+        #    if info.has_key("starttime") and info.has_key("endtime")\
+        #    and info.has_key("date") and info.has_key("version"):
+        #        file_info.append(file_name.strip("/"))
+        #        file_info.append(info["date"])
+        #        file_info.append(info["starttime"])
+        #        file_info.append(info["endtime"])
+        #        file_info.append(info["version"])
+        #        contents.append(file_info)
+        #    else:
+        #        #This is slave omcp file
+        #        pass
+        #end = time.time()
+        #inter = end - start
+        #print "This code piece %d use time %.3f"%(i,inter/1.0)
     #logging.info("logging,contents = %s"%(contents))
     
     return contents
