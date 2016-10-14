@@ -6,27 +6,33 @@ import glob
 import re
 import time, datetime
 import logging
+import threading
 from common import *
 
 #felix
 ###############################################################################
 contents = []
 f_change = True
+f_multi_thread = True
+f_log = False
 ###############################################################################
 # common functions
 
 #ornament to clculate and print the time used
 def time_interval(func):
     def _deco(*args, **kwargs):
+        global f_multi_thread
+        global f_log
 
         start = time.time()
         ret = func(*args, **kwargs)
         end = time.time()
         interval = end - start
-        print
-        print "DEBUG function:'%s' total time used:%.3f seconds"\
-        %(func.__name__,interval/1.000)
-        print
+        if f_log:
+            print
+            logging.info("function '%s'cost %.3f seconds, multithread:%s"\
+            %(func.__name__,interval/1.000,f_multi_thread))
+            print
         return ret
     return _deco
 
@@ -259,6 +265,7 @@ def decode_log(realtime_dir_list, vce_id = "all"):
 
 
 def flush_rtrc(realtime_dir_list):
+    global f_log
 
     for dir in realtime_dir_list:
         #Bug 1 delete *.tgz also 
@@ -277,7 +284,8 @@ def flush_rtrc(realtime_dir_list):
             printd("Flush finished\n")
             continue
         else:
-            logging.warning("%s"%(buff))
+            if f_log:
+                logging.warning("%s"%(buff))
 
 ##############end flush_rtrc#################################
 
@@ -760,7 +768,6 @@ def process(file_name,opt, dir_list):
             grep_key_word_custom(cmd, l_realtime_dir, "further")
 
     elif 0 == int(opt[0]):
-        
 
         try:
             read_me = "../README.md" 
@@ -786,7 +793,7 @@ def process(file_name,opt, dir_list):
 ##################### end process ###########################################
 
 
-@time_interval
+#@time_interval
 def save_log_info(log_info_name,trace_file_path,file_name):
     '''
     this function search, read and the save loginfo to 
@@ -797,8 +804,7 @@ def save_log_info(log_info_name,trace_file_path,file_name):
     #start to search BSC-Genaral.txt in this director:
     p_find = subprocess.Popen("find %s -name %s"%(trace_file_path,log_info_name),\
     shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT);  
-    #p_find.wait()
-
+    p_find.wait()
     while True:
         file_info = []
         info = {}
@@ -834,18 +840,20 @@ def list_dir(dir_path):
 
     '''
     global contents
+    global f_multi_thread
+    global f_log
    
     contents = []
     log_info_name = "BSC-Genaral*"
 
-    #DEBUG i
-    i = 0
     #ls -F ==> dir1/ dir2/, -t sort by time
     p = subprocess.Popen("ls %s -Ft|grep /"%dir_path, shell=True,\
     stdout=subprocess.PIPE, stderr=subprocess.STDOUT)  
-    p.wait()
-
+   # p.wait()
+    t_list = [] 
+    i = 0
     while True:
+        i = i + 1
         file_name = p.stdout.readline()
         if file_name == "" and p.poll() != None:
             break
@@ -855,45 +863,27 @@ def list_dir(dir_path):
         #deal with blanks in the path since find command would failed
         file_blank = trace_file_path#.replace(" ", "\ ")
         if len(trace_file_path.split(" "))>1:
-            print "DEBUG: Trace file name has blank, ignore this file: %s"%file_blank
+            if f_log:
+                logging.warning("Trace file name has blank, ignore this file: %s"%file_blank)
             continue
 
-        contents = save_log_info(log_info_name,dir_path,file_name)
-        
-        #i = i + 1
-        #start = time.time()
-        ##start to search BSC-Genaral.txt in this director:
-        #p_find = subprocess.Popen("find %s -name %s"%(trace_file_path,log_info_name),\
-        #shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT);  
-        ##p_find.wait()
+        #single thread:
+        if not f_multi_thread:
+            contents = save_log_info(log_info_name,trace_file_path,file_name)
+        else:
+            #feature multi threads processing:
+            t = threading.Thread(target=save_log_info,name="thread_%d_for_%s"%(i,file_name),\
+            args=(log_info_name,trace_file_path,file_name))
+            t.start()
+            t_list.append(t)
+            if i == 1:
+                t.join()
 
-        #while True:
-        #    file_info = []
-        #    info = {}
-        #    res = p_find.stdout.readline()
-        #    if res == "" and p_find.poll() != None:
-        #        break
-        #    res = res.strip("\n")
-        #    if res == "":
-        #        continue
-        #    info = read_log_info(res)
-        #    #judge if it is a master omcp by has_key starttime and endtime?
-        #    if info.has_key("starttime") and info.has_key("endtime")\
-        #    and info.has_key("date") and info.has_key("version"):
-        #        file_info.append(file_name.strip("/"))
-        #        file_info.append(info["date"])
-        #        file_info.append(info["starttime"])
-        #        file_info.append(info["endtime"])
-        #        file_info.append(info["version"])
-        #        contents.append(file_info)
-        #    else:
-        #        #This is slave omcp file
-        #        pass
-        #end = time.time()
-        #inter = end - start
-        #print "This code piece %d use time %.3f"%(i,inter/1.0)
-    #logging.info("logging,contents = %s"%(contents))
-    
+
+    if f_multi_thread:
+        for item in t_list:
+            t.join() 
+            item.join()
     return contents
 
 ###################### end list_dir ################################
@@ -969,10 +959,15 @@ if __name__ == "__main__" :
     print '\033[1;31;40m',
     print title.center(70),
     print '\033[0m',
-    print "\n"*2
-    #logging.basicConfig(level=logging.INFO, format="[%(asctime)s] %(name)s:%(levelname)s: %(message)s") 
+    print
+        
 
     while True:
+    
+        #log:
+        logging.basicConfig(level=logging.INFO,\
+        format="[%(levelname)s]: %(message)s") 
+
         #Display the title and show all available trace diectories
         if f_change:
             contents = list_dir(root_parent)
@@ -1062,6 +1057,20 @@ if __name__ == "__main__" :
             continue
             
         if "r" == opt or "R" == opt:
+            if len(com) > 1:
+                if com[1] == 'on':
+                    f_multi_thread = True
+                    print "multi_thread switch:%s"%com[1]
+                elif com[1] == 'off':
+                    f_multi_thread = False
+                    print "multi_thread switch:%s"%com[1]
+                elif com[1] == 'log':
+                    if f_log:
+                        f_log = False
+                    else:
+                        f_log = True
+                    print "log switch:%s"%f_log
+                
             contents = list_dir(root_parent)
             continue
 
